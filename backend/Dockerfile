@@ -12,8 +12,6 @@ RUN chown -R django:django /app
 
 USER django
 
-# CMD ["sh"]
-
 COPY ./src/requirements.txt .
 
 RUN pip install -r requirements.txt

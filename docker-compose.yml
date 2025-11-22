@@ -1,0 +1,35 @@
+services:
+  frontend:
+    container_name: frontend-next
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - 3000:3000
+    volumes:
+      - ./frontend/src:/app
+    environment:
+      - NODE_ENV=development
+  backend:
+    container_name: backend-django
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - 8000:8000
+    volumes:
+      - ./backend/src:/app
+  postgres:
+    container_name: postgres-db
+    image: postgres:16
+    ports:
+      - 5432:5432
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=recipme
+
+volumes:
+  postgres-data:
