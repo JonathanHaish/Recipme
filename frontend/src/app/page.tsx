@@ -1,6 +1,26 @@
+"use client";
+
 import Image from "next/image";
+import { useEffect, useState } from "react";
 
 export default function Home() {
+  const [exampleData, setExampleData] = useState<{ message?: string; status?: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("http://localhost:8000/example/")
+      .then((res) => res.json())
+      .then((data) => {
+        setExampleData(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        setError(err.message);
+        setLoading(false);
+      });
+  }, []);
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
       <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
@@ -16,6 +36,18 @@ export default function Home() {
           <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
             To get started, edit the page.tsx file. Ask Jonathan, Alice and Itay for help!
           </h1>
+          {loading && <p className="text-zinc-600 dark:text-zinc-400">Loading from Django...</p>}
+          {error && <p className="text-red-600 dark:text-red-400">Error: {error}</p>}
+          {exampleData && (
+            <div className="max-w-md rounded-lg bg-zinc-100 dark:bg-zinc-900 p-4">
+              <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-2">
+                Django API Response:
+              </p>
+              <p className="text-base text-zinc-700 dark:text-zinc-300">
+                {exampleData.message}
+              </p>
+            </div>
+          )}
           <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
             Looking for a starting point or more instructions? Head over to{" "}
             <a
