@@ -19,6 +19,14 @@ services:
       - 8000:8000
     volumes:
       - ./backend/src:/app
+    depends_on:
+      - postgres
+    environment:
+      - POSTGRES_DB=recipme
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
   postgres:
     container_name: postgres-db
     image: postgres:16
