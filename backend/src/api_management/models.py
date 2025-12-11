@@ -298,6 +298,31 @@ class FoodDataCentralAPI:
 
         return totals
 
+    def search_food_according_filter(self,filter):
+        """
+        Docstring for search_food_acordding 
+        The function to search for food by filtering - for example, lactose-free food. 
+        """
+        pass
+
+
+    def search_food_replace_filter(self,food,filter):
+        """
+        Docstring for search_food_replace_filter
+        The function will search for a substitute for food that is in stock and suitable for filtering.
+        """
+        pass
+    
+
+    def search_according_substring(self,substring):
+        """
+        The function will search for food types by part of the string. 
+        For example, the application asks for rice but there is only black rice, white rice, etc. 
+        Then the function will return ingredients for all of them in a dict format as follows:
+        {"<food name>":"<ingredients>"}...
+        """
+        pass
+        
 
 
 
