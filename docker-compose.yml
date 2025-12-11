@@ -56,7 +56,6 @@
 #   pgadmin-data:
 
 
-
 services:
   frontend:
     container_name: frontend-next
@@ -81,14 +80,14 @@ services:
       - ./backend/src:/app
     depends_on:
       - postgres
-      - redis              
+      - redis        # ← added dependency
     environment:
       - POSTGRES_DB=recipme
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
-      - REDIS_HOST=redis                 
+      - REDIS_HOST=redis        # ← backend will connect to redis
       - REDIS_PORT=6379
 
   postgres:
@@ -116,14 +115,14 @@ services:
     depends_on:
       - postgres
 
-  # ================================
-  # NEW SERVICE: Redis Cache Server
-  # ================================
+  # -------------------------------------------------
+  # NEW: Redis service
+  # -------------------------------------------------
   redis:
     container_name: redis-cache
     image: redis:7
     ports:
-      - 6379:6379            
+      - 6379:6379     # expose only if you want local access
     volumes:
       - redis-data:/data
     restart: always
@@ -131,4 +130,5 @@ services:
 volumes:
   postgres-data:
   pgadmin-data:
-  redis-data:          
+  redis-data:        # ← persistent storage for redis
+       
