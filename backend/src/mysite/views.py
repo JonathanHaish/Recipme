@@ -1,5 +1,5 @@
 from django.http import JsonResponse
-
+from api_management.models import FoodDataCentralAPI
 def root_view(request):
     """Root API endpoint"""
     return JsonResponse({
@@ -17,4 +17,5 @@ def example_view(request):
         'message': 'Hello from Django! This is an example API endpoint.',
         'status': 'success'
     })
+
 
