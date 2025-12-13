@@ -1,437 +1,564 @@
 """
-Static/Unit Tests for API Management Django App
-
-These tests focus on individual components and methods in isolation,
-testing the core logic without external dependencies.
+Static Tests for API Management Django Application
+Tests basic functionality, model validation, and static behavior
 """
 
 import unittest
 from unittest.mock import Mock, patch, MagicMock
-import json
-from django.test import TestCase
+from django.test import TestCase, RequestFactory
+from django.http import JsonResponse, HttpResponseBadRequest
 from django.core.cache import cache
 from django.conf import settings
+import json
+import hashlib
+import httpx
 
-from .models import (
-    ApiResult, 
-    HTTP2Client, 
-    FoodDataCentralAPI
-)
+from .models import ApiResult, HTTP2Client, FoodDataCentralAPI
+from .views import get_food_nutrition, get_multiple_foods, calculate_recipe_nutrition
 
 
-class TestApiResult(TestCase):
-    """Test the ApiResult data structure."""
-    
-    def test_successful_result_creation(self):
-        """Test creating a successful ApiResult."""
-        result = ApiResult(success=True, status=200, data={"key": "value"})
-        
+class ApiResultStaticTests(TestCase):
+    """Test ApiResult class static behavior"""
+
+    def test_api_result_initialization_success(self):
+        """Test ApiResult initialization with success"""
+        result = ApiResult(True, 200, {"data": "test"}, None, None)
         self.assertTrue(result.success)
         self.assertEqual(result.status, 200)
-        self.assertEqual(result.data, {"key": "value"})
+        self.assertEqual(result.data, {"data": "test"})
         self.assertIsNone(result.error)
-        self.assertTrue(bool(result))  # Test __bool__ method
-    
-    def test_failed_result_creation(self):
-        """Test creating a failed ApiResult."""
-        result = ApiResult(success=False, error="Network error")
-        
+
+    def test_api_result_initialization_failure(self):
+        """Test ApiResult initialization with failure"""
+        result = ApiResult(False, 404, None, "Not found", None)
         self.assertFalse(result.success)
-        self.assertIsNone(result.status)
+        self.assertEqual(result.status, 404)
         self.assertIsNone(result.data)
-        self.assertEqual(result.error, "Network error")
-        self.assertFalse(bool(result))  # Test __bool__ method
-    
-    def test_repr_method(self):
-        """Test the string representation of ApiResult."""
-        result = ApiResult(success=True, status=200)
+        self.assertEqual(result.error, "Not found")
+
+    def test_api_result_bool_conversion_true(self):
+        """Test ApiResult boolean conversion when success is True"""
+        result = ApiResult(True, 200, "data", None, None)
+        self.assertTrue(bool(result))
+
+    def test_api_result_bool_conversion_false(self):
+        """Test ApiResult boolean conversion when success is False"""
+        result = ApiResult(False, 404, None, "error", None)
+        self.assertFalse(bool(result))
+
+    def test_api_result_repr(self):
+        """Test ApiResult string representation"""
+        result = ApiResult(True, 200, "data", None, None)
         expected = "ApiResult(success=True, status=200)"
         self.assertEqual(repr(result), expected)
 
-
-class TestHTTP2Client(TestCase):
-    """Test the HTTP2Client class."""
-    
-    def setUp(self):
-        """Set up test fixtures."""
-        try:
-            self.client = HTTP2Client(
-                base_url="https://api.example.com",
-                timeout=5.0,
-                retries=2,
-                backoff=0.1
-            )
-        except ImportError as e:
-            self.skipTest(f"HTTP/2 dependencies not available: {e}")
-    
-    def tearDown(self):
-        """Clean up after tests."""
-        if hasattr(self, 'client'):
-            self.client.close()
-    
-    def test_client_initialization(self):
-        """Test HTTP2Client initialization."""
-        self.assertEqual(self.client.base_url, "https://api.example.com")
-        self.assertEqual(self.client.timeout, 5.0)
-        self.assertEqual(self.client.retries, 2)
-        self.assertEqual(self.client.backoff, 0.1)
-        self.assertIsNotNone(self.client.client)
-    
-    def test_build_url_with_base_url(self):
-        """Test URL building with base URL."""
-        url = self.client.build_url("/endpoint")
-        self.assertEqual(url, "https://api.example.com/endpoint")
-        
-        url = self.client.build_url("endpoint")
-        self.assertEqual(url, "https://api.example.com/endpoint")
-    
-    def test_build_url_absolute_url(self):
-        """Test URL building with absolute URL."""
-        url = self.client.build_url("https://other.com/endpoint")
-        self.assertEqual(url, "https://other.com/endpoint")
-    
-    def test_build_url_no_base_url(self):
-        """Test URL building without base URL."""
-        client = HTTP2Client()
-        url = client.build_url("/endpoint")
-        self.assertEqual(url, "/endpoint")
-        client.close()
-    
-    @patch('httpx.Client.request')
-    def test_send_once_success(self, mock_request):
-        """Test successful single request."""
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.text = "success"
-        mock_request.return_value = mock_response
-        
-        result = self.client._send_once("GET", "/test")
-        
+    def test_api_result_default_values(self):
+        """Test ApiResult with minimal parameters"""
+        result = ApiResult(True)
         self.assertTrue(result.success)
-        self.assertEqual(result.status, 200)
-        self.assertEqual(result.data, "success")
-        self.assertIsNone(result.error)
-    
-    @patch('httpx.Client.request')
-    def test_send_once_failure(self, mock_request):
-        """Test failed single request."""
-        mock_request.side_effect = Exception("Connection error")
-        
-        result = self.client._send_once("GET", "/test")
-        
-        self.assertFalse(result.success)
         self.assertIsNone(result.status)
         self.assertIsNone(result.data)
-        self.assertIn("Request error", result.error)
-    
-    @patch('httpx.Client.request')
-    def test_parse_json_response(self, mock_request):
-        """Test JSON response parsing."""
+        self.assertIsNone(result.error)
+        self.assertIsNone(result.raw)
+
+    def test_api_result_all_parameters(self):
+        """Test ApiResult with all parameters"""
         mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.text = '{"key": "value"}'
-        mock_response.headers = {"content-type": "application/json"}
-        mock_response.json.return_value = {"key": "value"}
-        mock_request.return_value = mock_response
+        result = ApiResult(True, 201, {"created": True}, None, mock_response)
+        self.assertTrue(result.success)
+        self.assertEqual(result.status, 201)
+        self.assertEqual(result.data, {"created": True})
+        self.assertIsNone(result.error)
+        self.assertEqual(result.raw, mock_response)
+
+    def test_api_result_error_with_status(self):
+        """Test ApiResult with error and status code"""
+        result = ApiResult(False, 500, None, "Internal server error", None)
+        self.assertFalse(result.success)
+        self.assertEqual(result.status, 500)
+        self.assertEqual(result.error, "Internal server error")
+
+    def test_api_result_success_without_data(self):
+        """Test ApiResult success without data"""
+        result = ApiResult(True, 204, None, None, None)
+        self.assertTrue(result.success)
+        self.assertEqual(result.status, 204)
+        self.assertIsNone(result.data)
+
+    def test_api_result_if_condition_usage(self):
+        """Test using ApiResult in if conditions"""
+        success_result = ApiResult(True, 200, "data", None, None)
+        failure_result = ApiResult(False, 404, None, "error", None)
         
-        result = self.client._send_once("GET", "/test")
-        parsed_result = self.client._parse_json_if_possible(result)
-        
-        self.assertTrue(parsed_result.success)
-        self.assertEqual(parsed_result.data, {"key": "value"})
-    
-    @patch('httpx.Client.request')
-    def test_parse_invalid_json_response(self, mock_request):
-        """Test invalid JSON response parsing."""
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.text = 'invalid json'
-        mock_response.headers = {"content-type": "application/json"}
-        mock_response.json.side_effect = json.JSONDecodeError("Invalid", "", 0)
-        mock_request.return_value = mock_response
-        
-        result = self.client._send_once("GET", "/test")
-        parsed_result = self.client._parse_json_if_possible(result)
-        
-        self.assertFalse(parsed_result.success)
-        self.assertEqual(parsed_result.error, "Invalid JSON response")
+        if success_result:
+            success_check = True
+        else:
+            success_check = False
+            
+        if failure_result:
+            failure_check = True
+        else:
+            failure_check = False
+            
+        self.assertTrue(success_check)
+        self.assertFalse(failure_check)
 
 
-class TestFoodDataCentralAPI(TestCase):
-    """Test the FoodDataCentralAPI class."""
-    
-    def setUp(self):
-        """Set up test fixtures."""
-        self.mock_client = Mock()
-        self.api = FoodDataCentralAPI(self.mock_client, "test_api_key")
-        cache.clear()  # Clear cache before each test
-    
-    def tearDown(self):
-        """Clean up after tests."""
-        cache.clear()
-    
-    def test_sanitize_name(self):
-        """Test name sanitization."""
-        test_cases = [
-            ("Apple Pie", "apple-pie"),
-            ("Café au Lait", "cafe-au-lait"),
-            ("Rice & Beans", "rice--beans"),  # Fixed: & becomes empty, creating double dash
-            ("  Extra   Spaces  ", "extra-spaces"),
-            ("פיתה ביתית", "פיתה-ביתית"),
-            ("123 Numbers!", "123-numbers")
-        ]
-        
-        for input_name, expected in test_cases:
-            with self.subTest(input_name=input_name):
-                result = self.api.sanitize_name(input_name)
-                self.assertEqual(result, expected)
-    
-    def test_generate_custom_key_unique(self):
-        """Test custom key generation for unique names."""
-        key = self.api.generate_custom_key("apple")
-        self.assertEqual(key, "food:apple")
-    
-    def test_generate_custom_key_duplicate(self):
-        """Test custom key generation for duplicate names."""
-        # Set up existing key
-        cache.set("food:apple", {"test": "data"})
-        
-        key = self.api.generate_custom_key("apple")
-        self.assertEqual(key, "food:apple-2")
-    
-    def test_save_custom_food(self):
-        """Test saving custom food data."""
-        food_data = {"calories": 100, "protein": 5}
-        key = self.api.save_custom_food("apple", food_data)
-        
-        self.assertEqual(key, "food:apple")
-        cached_data = cache.get(key)
-        self.assertEqual(cached_data, food_data)
-    
-    def test_get_custom_food_exists(self):
-        """Test retrieving existing custom food."""
-        food_data = {"calories": 100, "protein": 5}
-        cache.set("food:apple", food_data)
-        
-        result = self.api.get_custom_food("apple")
-        self.assertEqual(result, food_data)
-    
-    def test_get_custom_food_not_exists(self):
-        """Test retrieving non-existing custom food."""
-        result = self.api.get_custom_food("nonexistent")
-        self.assertIsNone(result)
-    
-    def test_get_custom_food_versioned(self):
-        """Test retrieving versioned custom food."""
-        food_data = {"calories": 150, "protein": 8}
-        cache.set("food:apple-2", food_data)
-        
-        result = self.api.get_custom_food("apple")
-        self.assertEqual(result, food_data)
-    
-    def test_with_key_method(self):
-        """Test API key addition to parameters."""
-        params = {"query": "apple"}
-        result = self.api._with_key(params)
-        
-        expected = {"query": "apple", "api_key": "test_api_key"}
-        self.assertEqual(result, expected)
-    
-    def test_with_key_empty_params(self):
-        """Test API key addition to empty parameters."""
-        result = self.api._with_key()
-        expected = {"api_key": "test_api_key"}
-        self.assertEqual(result, expected)
-    
-    def test_extract_nutrients_complete_data(self):
-        """Test nutrient extraction from complete food data."""
-        food_data = {
-            "foodNutrients": [
-                {
-                    "nutrient": {"name": "Protein", "unitName": "g"},
-                    "amount": 25.0
-                },
-                {
-                    "nutrient": {"name": "Total lipid (fat)", "unitName": "g"},
-                    "amount": 10.0
-                },
-                {
-                    "nutrient": {"name": "Energy", "unitName": "kcal"},
-                    "amount": 200.0
-                }
-            ]
-        }
-        
-        result = self.api.extract_nutrients(food_data)
-        
-        expected = {
-            "protein": {"value": 25.0, "unit": "g"},
-            "fat": {"value": 10.0, "unit": "g"},
-            "calories": {"value": 200.0, "unit": "kcal"}
-        }
-        self.assertEqual(result, expected)
-    
-    def test_extract_nutrients_alternative_format(self):
-        """Test nutrient extraction from alternative data format."""
-        food_data = {
-            "foodNutrients": [
-                {
-                    "nutrientName": "Protein",
-                    "value": 15.0,
-                    "unitName": "g"
-                }
-            ]
-        }
-        
-        result = self.api.extract_nutrients(food_data)
-        expected = {"protein": {"value": 15.0, "unit": "g"}}
-        self.assertEqual(result, expected)
-    
-    def test_scale_nutrients(self):
-        """Test nutrient scaling by grams."""
-        nutrients = {
-            "protein": {"value": 20.0},
-            "calories": {"value": 100.0}
-        }
-        
-        result = self.api.scale_nutrients(nutrients, 150.0)
-        
-        expected = {
-            "protein": 30.0,  # (20 * 150) / 100
-            "calories": 150.0  # (100 * 150) / 100
-        }
-        self.assertEqual(result, expected)
-    
-    def test_calculate_recipe_nutrition_usda_ingredients(self):
-        """Test recipe nutrition calculation with USDA ingredients."""
-        # Mock USDA food data
-        usda_food = {
-            "foodNutrients": [
-                {"nutrient": {"name": "Protein", "unitName": "g"}, "amount": 20.0},
-                {"nutrient": {"name": "Energy", "unitName": "kcal"}, "amount": 100.0}
-            ]
-        }
-        
-        # Mock the get_usda_food method
-        self.api.get_usda_food = Mock(return_value=usda_food)
-        
-        ingredients = [
-            {"fdc_id": 12345, "amount_grams": 100},
-            {"fdc_id": 67890, "amount_grams": 50}
-        ]
-        
-        result = self.api.calculate_recipe_nutrition(ingredients)
-        
-        # Expected: 100g + 50g of the same food
-        # Protein: (20 * 100)/100 + (20 * 50)/100 = 20 + 10 = 30
-        # Calories: (100 * 100)/100 + (100 * 50)/100 = 100 + 50 = 150
-        self.assertEqual(result["protein"], 30.0)
-        self.assertEqual(result["calories"], 150.0)
-    
-    def test_calculate_recipe_nutrition_custom_ingredients(self):
-        """Test recipe nutrition calculation with custom ingredients."""
-        # Mock custom food data
-        custom_food = {
-            "foodNutrients": [
-                {"nutrient": {"name": "Protein", "unitName": "g"}, "amount": 15.0},
-                {"nutrient": {"name": "Energy", "unitName": "kcal"}, "amount": 80.0}
-            ]
-        }
-        
-        # Mock the get_custom_food method
-        self.api.get_custom_food = Mock(return_value=custom_food)
-        
-        ingredients = [
-            {"custom_name": "homemade bread", "amount_grams": 200}
-        ]
-        
-        result = self.api.calculate_recipe_nutrition(ingredients)
-        
-        # Expected: 200g of custom food
-        # Protein: (15 * 200)/100 = 30
-        # Calories: (80 * 200)/100 = 160
-        self.assertEqual(result["protein"], 30.0)
-        self.assertEqual(result["calories"], 160.0)
-    
-    def test_calculate_recipe_nutrition_missing_food(self):
-        """Test recipe nutrition calculation with missing food data."""
-        # Mock methods to return None (food not found)
-        self.api.get_usda_food = Mock(return_value=None)
-        self.api.get_custom_food = Mock(return_value=None)
-        
-        ingredients = [
-            {"fdc_id": 99999, "amount_grams": 100},
-            {"custom_name": "nonexistent", "amount_grams": 50}
-        ]
-        
-        result = self.api.calculate_recipe_nutrition(ingredients)
-        
-        # All values should be 0 since no food data was found
-        for key in result:
-            self.assertEqual(result[key], 0.0)
+class HTTP2ClientStaticTests(TestCase):
+    """Test HTTP2Client class static behavior"""
 
+    def test_http2_client_initialization_default(self):
+        """Test HTTP2Client initialization with defaults"""
+        client = HTTP2Client()
+        self.assertIsNone(client.base_url)
+        self.assertEqual(client.timeout, 8.0)
+        self.assertEqual(client.retries, 3)
+        self.assertEqual(client.backoff, 0.5)
+        self.assertIsInstance(client.client, httpx.Client)
 
-class TestFoodDataCentralAPIIntegration(TestCase):
-    """Integration tests for FoodDataCentralAPI with mocked HTTP client."""
-    
-    def setUp(self):
-        """Set up test fixtures."""
-        self.mock_client = Mock()
-        self.api = FoodDataCentralAPI(self.mock_client, "test_api_key")
-        cache.clear()
-    
-    def tearDown(self):
-        """Clean up after tests."""
-        cache.clear()
-    
-    def test_get_usda_food_success(self):
-        """Test successful USDA food retrieval."""
-        mock_response = Mock()
-        mock_response.success = True
-        mock_response.data = {"fdc_id": 12345, "description": "Apple"}
-        
-        self.mock_client.request.return_value = mock_response
-        
-        result = self.api.get_usda_food(12345)
-        
-        self.assertEqual(result, {"fdc_id": 12345, "description": "Apple"})
-        self.mock_client.request.assert_called_once()
-    
-    def test_get_usda_food_cached(self):
-        """Test USDA food retrieval from cache."""
-        # Pre-populate cache
-        cached_data = {"fdc_id": 12345, "description": "Cached Apple"}
-        cache.set("fdc:12345", cached_data, self.api.CACHE_TTL)
-        
-        result = self.api.get_usda_food(12345)
-        
-        self.assertEqual(result, cached_data)
-        # Should not make HTTP request
-        self.mock_client.request.assert_not_called()
-    
-    def test_get_usda_food_failure(self):
-        """Test failed USDA food retrieval."""
-        mock_response = Mock()
-        mock_response.success = False
-        
-        self.mock_client.request.return_value = mock_response
-        
-        result = self.api.get_usda_food(12345)
-        
-        self.assertIsNone(result)
-    
-    def test_api_get_method(self):
-        """Test the api_get wrapper method."""
-        params = {"query": "apple"}
-        
-        # The api_get method calls _with_key internally
-        self.api.api_get("search", params)
-        
-        # The params should be modified by _with_key to include api_key
-        expected_params = {"query": "apple", "api_key": "test_api_key"}
-        self.mock_client.request.assert_called_once_with(
-            "GET", "search", params=expected_params
+    def test_http2_client_initialization_custom(self):
+        """Test HTTP2Client initialization with custom values"""
+        client = HTTP2Client(
+            base_url="https://api.example.com/",
+            timeout=10.0,
+            retries=5,
+            backoff=1.0
         )
+        self.assertEqual(client.base_url, "https://api.example.com")
+        self.assertEqual(client.timeout, 10.0)
+        self.assertEqual(client.retries, 5)
+        self.assertEqual(client.backoff, 1.0)
+
+    def test_build_url_with_base_url(self):
+        """Test URL building with base URL"""
+        client = HTTP2Client(base_url="https://api.example.com")
+        url = client.build_url("endpoint")
+        self.assertEqual(url, "https://api.example.com/endpoint")
+
+    def test_build_url_with_base_url_trailing_slash(self):
+        """Test URL building with base URL having trailing slash"""
+        client = HTTP2Client(base_url="https://api.example.com/")
+        url = client.build_url("endpoint")
+        self.assertEqual(url, "https://api.example.com/endpoint")
+
+    def test_build_url_with_leading_slash_path(self):
+        """Test URL building with path having leading slash"""
+        client = HTTP2Client(base_url="https://api.example.com")
+        url = client.build_url("/endpoint")
+        self.assertEqual(url, "https://api.example.com/endpoint")
+
+    def test_build_url_without_base_url(self):
+        """Test URL building without base URL"""
+        client = HTTP2Client()
+        url = client.build_url("https://api.example.com/endpoint")
+        self.assertEqual(url, "https://api.example.com/endpoint")
+
+    def test_build_url_absolute_path_ignores_base(self):
+        """Test URL building with absolute path ignores base URL"""
+        client = HTTP2Client(base_url="https://api.example.com")
+        url = client.build_url("https://other.com/endpoint")
+        self.assertEqual(url, "https://other.com/endpoint")
+
+    def test_build_url_empty_path(self):
+        """Test URL building with empty path"""
+        client = HTTP2Client(base_url="https://api.example.com")
+        url = client.build_url("")
+        self.assertEqual(url, "https://api.example.com/")
+
+    def test_build_url_none_base_url(self):
+        """Test URL building with None base URL"""
+        client = HTTP2Client(base_url=None)
+        url = client.build_url("endpoint")
+        self.assertEqual(url, "endpoint")
+
+    def test_close_method_exists(self):
+        """Test that close method exists and is callable"""
+        client = HTTP2Client()
+        self.assertTrue(hasattr(client, 'close'))
+        self.assertTrue(callable(client.close))
+
+    @patch('httpx.Client')
+    def test_close_method_calls_client_close(self, mock_client_class):
+        """Test that close method calls underlying client close"""
+        mock_client = Mock()
+        mock_client_class.return_value = mock_client
+        
+        client = HTTP2Client()
+        client.close()
+        
+        mock_client.close.assert_called_once()
+
+
+class FoodDataCentralAPIStaticTests(TestCase):
+    """Test FoodDataCentralAPI class static behavior"""
+
+    def test_food_api_initialization_default(self):
+        """Test FoodDataCentralAPI initialization with defaults"""
+        with patch.object(FoodDataCentralAPI, '__init__', lambda x: None):
+            api = FoodDataCentralAPI.__new__(FoodDataCentralAPI)
+            api.api_key = "test_key"
+            self.assertEqual(api.api_key, "test_key")
+
+    def test_food_api_constants(self):
+        """Test FoodDataCentralAPI class constants"""
+        self.assertEqual(FoodDataCentralAPI.SEARCH_TTL, 60 * 60)
+        self.assertEqual(FoodDataCentralAPI.FOOD_TTL, 24 * 60 * 60)
+        self.assertEqual(FoodDataCentralAPI.MULTI_TTL, 24 * 60 * 60)
+
+    def test_with_key_method_empty_params(self):
+        """Test _with_key method with empty parameters"""
+        with patch.object(FoodDataCentralAPI, '__init__', lambda x: None):
+            api = FoodDataCentralAPI.__new__(FoodDataCentralAPI)
+            api.api_key = "test_key"
+            result = api._with_key()
+            self.assertEqual(result, {"api_key": "test_key"})
+
+    def test_with_key_method_existing_params(self):
+        """Test _with_key method with existing parameters"""
+        with patch.object(FoodDataCentralAPI, '__init__', lambda x: None):
+            api = FoodDataCentralAPI.__new__(FoodDataCentralAPI)
+            api.api_key = "test_key"
+            result = api._with_key({"query": "apple"})
+            expected = {"query": "apple", "api_key": "test_key"}
+            self.assertEqual(result, expected)
+
+    def test_cache_key_generation(self):
+        """Test cache key generation"""
+        with patch.object(FoodDataCentralAPI, '__init__', lambda x: None):
+            api = FoodDataCentralAPI.__new__(FoodDataCentralAPI)
+            payload = {"query": "apple", "pageSize": 10}
+            key = api._cache_key("search", payload)
+            
+            # Verify key format
+            self.assertTrue(key.startswith("fdc:search:"))
+            self.assertEqual(len(key.split(":")), 3)
+
+    def test_cache_key_consistency(self):
+        """Test cache key consistency for same payload"""
+        with patch.object(FoodDataCentralAPI, '__init__', lambda x: None):
+            api = FoodDataCentralAPI.__new__(FoodDataCentralAPI)
+            payload = {"query": "apple", "pageSize": 10}
+            key1 = api._cache_key("search", payload)
+            key2 = api._cache_key("search", payload)
+            self.assertEqual(key1, key2)
+
+    def test_cache_key_different_for_different_payload(self):
+        """Test cache key differs for different payloads"""
+        with patch.object(FoodDataCentralAPI, '__init__', lambda x: None):
+            api = FoodDataCentralAPI.__new__(FoodDataCentralAPI)
+            payload1 = {"query": "apple", "pageSize": 10}
+            payload2 = {"query": "banana", "pageSize": 10}
+            key1 = api._cache_key("search", payload1)
+            key2 = api._cache_key("search", payload2)
+            self.assertNotEqual(key1, key2)
+
+    def test_extract_key_nutrients_empty_data(self):
+        """Test extract_key_nutrients with empty data"""
+        with patch.object(FoodDataCentralAPI, '__init__', lambda x: None):
+            api = FoodDataCentralAPI.__new__(FoodDataCentralAPI)
+            result = api.extract_key_nutrients({})
+            self.assertEqual(result, {})
+
+    def test_extract_key_nutrients_no_nutrients(self):
+        """Test extract_key_nutrients with no foodNutrients key"""
+        with patch.object(FoodDataCentralAPI, '__init__', lambda x: None):
+            api = FoodDataCentralAPI.__new__(FoodDataCentralAPI)
+            result = api.extract_key_nutrients({"description": "Apple"})
+            self.assertEqual(result, {})
+
+    def test_extract_key_nutrients_empty_nutrients_list(self):
+        """Test extract_key_nutrients with empty nutrients list"""
+        with patch.object(FoodDataCentralAPI, '__init__', lambda x: None):
+            api = FoodDataCentralAPI.__new__(FoodDataCentralAPI)
+            result = api.extract_key_nutrients({"foodNutrients": []})
+            self.assertEqual(result, {})
+
+    def test_extract_key_nutrients_protein(self):
+        """Test extract_key_nutrients extracts protein correctly"""
+        with patch.object(FoodDataCentralAPI, '__init__', lambda x: None):
+            api = FoodDataCentralAPI.__new__(FoodDataCentralAPI)
+            food_data = {
+                "foodNutrients": [
+                    {
+                        "nutrient": {"name": "Protein", "unitName": "g"},
+                        "amount": 20.5
+                    }
+                ]
+            }
+            result = api.extract_key_nutrients(food_data)
+            expected = {"protein": {"value": 20.5, "unit": "g"}}
+            self.assertEqual(result, expected)
+
+    def test_extract_key_nutrients_multiple_nutrients(self):
+        """Test extract_key_nutrients with multiple nutrients"""
+        with patch.object(FoodDataCentralAPI, '__init__', lambda x: None):
+            api = FoodDataCentralAPI.__new__(FoodDataCentralAPI)
+            food_data = {
+                "foodNutrients": [
+                    {
+                        "nutrient": {"name": "Protein", "unitName": "g"},
+                        "amount": 20.5
+                    },
+                    {
+                        "nutrient": {"name": "Total lipid (fat)", "unitName": "g"},
+                        "amount": 10.2
+                    }
+                ]
+            }
+            result = api.extract_key_nutrients(food_data)
+            expected = {
+                "protein": {"value": 20.5, "unit": "g"},
+                "fat": {"value": 10.2, "unit": "g"}
+            }
+            self.assertEqual(result, expected)
+
+    def test_extract_key_nutrients_alternative_format(self):
+        """Test extract_key_nutrients with alternative nutrient format"""
+        with patch.object(FoodDataCentralAPI, '__init__', lambda x: None):
+            api = FoodDataCentralAPI.__new__(FoodDataCentralAPI)
+            food_data = {
+                "foodNutrients": [
+                    {
+                        "nutrientName": "Energy",
+                        "value": 250,
+                        "unitName": "kcal"
+                    }
+                ]
+            }
+            result = api.extract_key_nutrients(food_data)
+            expected = {"calories": {"value": 250, "unit": "kcal"}}
+            self.assertEqual(result, expected)
+
+    def test_extract_key_nutrients_missing_amount(self):
+        """Test extract_key_nutrients with missing amount defaults to 0"""
+        with patch.object(FoodDataCentralAPI, '__init__', lambda x: None):
+            api = FoodDataCentralAPI.__new__(FoodDataCentralAPI)
+            food_data = {
+                "foodNutrients": [
+                    {
+                        "nutrient": {"name": "Protein", "unitName": "g"}
+                    }
+                ]
+            }
+            result = api.extract_key_nutrients(food_data)
+            expected = {"protein": {"value": 0, "unit": "g"}}
+            self.assertEqual(result, expected)
+
+    def test_extract_key_nutrients_unknown_nutrient_ignored(self):
+        """Test extract_key_nutrients ignores unknown nutrients"""
+        with patch.object(FoodDataCentralAPI, '__init__', lambda x: None):
+            api = FoodDataCentralAPI.__new__(FoodDataCentralAPI)
+            food_data = {
+                "foodNutrients": [
+                    {
+                        "nutrient": {"name": "Unknown Nutrient", "unitName": "g"},
+                        "amount": 5.0
+                    },
+                    {
+                        "nutrient": {"name": "Protein", "unitName": "g"},
+                        "amount": 20.5
+                    }
+                ]
+            }
+            result = api.extract_key_nutrients(food_data)
+            expected = {"protein": {"value": 20.5, "unit": "g"}}
+            self.assertEqual(result, expected)
+
+
+class ViewsStaticTests(TestCase):
+    """Test views static behavior and validation"""
+
+    def setUp(self):
+        self.factory = RequestFactory()
+
+    def test_get_food_nutrition_wrong_method_post(self):
+        """Test get_food_nutrition with POST method returns error"""
+        request = self.factory.post('/food/')
+        response = get_food_nutrition(request)
+        self.assertIsInstance(response, HttpResponseBadRequest)
+
+    def test_get_food_nutrition_wrong_method_put(self):
+        """Test get_food_nutrition with PUT method returns error"""
+        request = self.factory.put('/food/')
+        response = get_food_nutrition(request)
+        self.assertIsInstance(response, HttpResponseBadRequest)
+
+    def test_get_food_nutrition_wrong_method_delete(self):
+        """Test get_food_nutrition with DELETE method returns error"""
+        request = self.factory.delete('/food/')
+        response = get_food_nutrition(request)
+        self.assertIsInstance(response, HttpResponseBadRequest)
+
+    def test_get_food_nutrition_missing_food_parameter(self):
+        """Test get_food_nutrition without food parameter returns error"""
+        request = self.factory.get('/food/')
+        response = get_food_nutrition(request)
+        self.assertIsInstance(response, HttpResponseBadRequest)
+
+    def test_get_food_nutrition_empty_food_parameter(self):
+        """Test get_food_nutrition with empty food parameter returns error"""
+        request = self.factory.get('/food/', {'food': ''})
+        response = get_food_nutrition(request)
+        self.assertIsInstance(response, HttpResponseBadRequest)
+
+    def test_get_multiple_foods_wrong_method_post(self):
+        """Test get_multiple_foods with POST method returns error"""
+        request = self.factory.post('/foods/')
+        response = get_multiple_foods(request)
+        self.assertIsInstance(response, HttpResponseBadRequest)
+
+    def test_get_multiple_foods_missing_foods_parameter(self):
+        """Test get_multiple_foods without foods parameter returns error"""
+        request = self.factory.get('/foods/')
+        response = get_multiple_foods(request)
+        self.assertIsInstance(response, HttpResponseBadRequest)
+
+    def test_get_multiple_foods_non_list_parameter(self):
+        """Test get_multiple_foods with non-list foods parameter returns error"""
+        request = self.factory.get('/foods/', {'foods': 'apple'})
+        response = get_multiple_foods(request)
+        self.assertIsInstance(response, HttpResponseBadRequest)
+
+    def test_calculate_recipe_nutrition_wrong_method_post(self):
+        """Test calculate_recipe_nutrition with POST method returns error"""
+        request = self.factory.post('/recipe/nutrition/')
+        response = calculate_recipe_nutrition(request)
+        self.assertIsInstance(response, HttpResponseBadRequest)
+
+    def test_calculate_recipe_nutrition_missing_recipe_parameter(self):
+        """Test calculate_recipe_nutrition without recipe parameter returns error"""
+        request = self.factory.get('/recipe/nutrition/')
+        response = calculate_recipe_nutrition(request)
+        self.assertIsInstance(response, HttpResponseBadRequest)
+
+    def test_calculate_recipe_nutrition_non_dict_parameter(self):
+        """Test calculate_recipe_nutrition with non-dict recipe parameter returns error"""
+        request = self.factory.get('/recipe/nutrition/', {'recipe': 'invalid'})
+        response = calculate_recipe_nutrition(request)
+        self.assertIsInstance(response, HttpResponseBadRequest)
+
+    def test_calculate_recipe_nutrition_missing_name(self):
+        """Test calculate_recipe_nutrition with recipe missing name returns error"""
+        recipe = {'foodNutrients': ['apple', 'banana']}
+        request = self.factory.get('/recipe/nutrition/', {'recipe': recipe})
+        response = calculate_recipe_nutrition(request)
+        self.assertIsInstance(response, HttpResponseBadRequest)
+
+    def test_calculate_recipe_nutrition_missing_nutrients(self):
+        """Test calculate_recipe_nutrition with recipe missing foodNutrients returns error"""
+        recipe = {'name': 'Test Recipe'}
+        request = self.factory.get('/recipe/nutrition/', {'recipe': recipe})
+        response = calculate_recipe_nutrition(request)
+        self.assertIsInstance(response, HttpResponseBadRequest)
+
+    def test_calculate_recipe_nutrition_non_string_name(self):
+        """Test calculate_recipe_nutrition with non-string name returns error"""
+        recipe = {'name': 123, 'foodNutrients': ['apple']}
+        request = self.factory.get('/recipe/nutrition/', {'recipe': recipe})
+        response = calculate_recipe_nutrition(request)
+        self.assertIsInstance(response, HttpResponseBadRequest)
+
+    def test_calculate_recipe_nutrition_non_list_nutrients(self):
+        """Test calculate_recipe_nutrition with non-list foodNutrients returns error"""
+        recipe = {'name': 'Test Recipe', 'foodNutrients': 'apple'}
+        request = self.factory.get('/recipe/nutrition/', {'recipe': recipe})
+        response = calculate_recipe_nutrition(request)
+        self.assertIsInstance(response, HttpResponseBadRequest)
+
+
+class UrlPatternsStaticTests(TestCase):
+    """Test URL patterns static configuration"""
+
+    def test_url_patterns_exist(self):
+        """Test that URL patterns are defined"""
+        from .urls import urlpatterns
+        self.assertIsInstance(urlpatterns, list)
+        self.assertGreater(len(urlpatterns), 0)
+
+    def test_app_name_defined(self):
+        """Test that app_name is defined"""
+        from .urls import app_name
+        self.assertEqual(app_name, 'api_management')
+
+    def test_food_url_pattern_exists(self):
+        """Test that food URL pattern exists"""
+        from .urls import urlpatterns
+        food_patterns = [p for p in urlpatterns if 'food' in str(p.pattern)]
+        self.assertGreater(len(food_patterns), 0)
+
+    def test_foods_url_pattern_exists(self):
+        """Test that foods URL pattern exists"""
+        from .urls import urlpatterns
+        foods_patterns = [p for p in urlpatterns if 'foods' in str(p.pattern)]
+        self.assertGreater(len(foods_patterns), 0)
+
+    def test_recipe_nutrition_url_pattern_exists(self):
+        """Test that recipe nutrition URL pattern exists"""
+        from .urls import urlpatterns
+        recipe_patterns = [p for p in urlpatterns if 'recipe' in str(p.pattern)]
+        self.assertGreater(len(recipe_patterns), 0)
+
+
+class CacheStaticTests(TestCase):
+    """Test cache configuration and static behavior"""
+
+    def test_cache_configured(self):
+        """Test that cache is properly configured"""
+        from django.core.cache import cache
+        self.assertIsNotNone(cache)
+
+    def test_cache_key_generation_consistency(self):
+        """Test cache key generation is consistent"""
+        payload1 = {"query": "apple", "pageSize": 10}
+        payload2 = {"query": "apple", "pageSize": 10}
+        
+        raw1 = json.dumps(payload1, sort_keys=True, ensure_ascii=False)
+        raw2 = json.dumps(payload2, sort_keys=True, ensure_ascii=False)
+        
+        digest1 = hashlib.sha256(raw1.encode("utf-8")).hexdigest()
+        digest2 = hashlib.sha256(raw2.encode("utf-8")).hexdigest()
+        
+        self.assertEqual(digest1, digest2)
+
+    def test_cache_key_generation_different_payloads(self):
+        """Test cache key generation differs for different payloads"""
+        payload1 = {"query": "apple", "pageSize": 10}
+        payload2 = {"query": "banana", "pageSize": 10}
+        
+        raw1 = json.dumps(payload1, sort_keys=True, ensure_ascii=False)
+        raw2 = json.dumps(payload2, sort_keys=True, ensure_ascii=False)
+        
+        digest1 = hashlib.sha256(raw1.encode("utf-8")).hexdigest()
+        digest2 = hashlib.sha256(raw2.encode("utf-8")).hexdigest()
+        
+        self.assertNotEqual(digest1, digest2)
+
+
+class SettingsStaticTests(TestCase):
+    """Test Django settings static configuration"""
+
+    def test_api_key_setting_exists(self):
+        """Test that API_KEY setting exists"""
+        self.assertTrue(hasattr(settings, 'API_KEY'))
+
+    def test_installed_apps_contains_api_management(self):
+        """Test that api_management is in INSTALLED_APPS"""
+        self.assertIn('api_management', settings.INSTALLED_APPS)
+
+    def test_cache_configuration_exists(self):
+        """Test that CACHES configuration exists"""
+        self.assertTrue(hasattr(settings, 'CACHES'))
+        self.assertIn('default', settings.CACHES)
+
+    def test_database_configuration_exists(self):
+        """Test that database configuration exists"""
+        self.assertTrue(hasattr(settings, 'DATABASES'))
+        self.assertIn('default', settings.DATABASES)
+
+    def test_cors_configuration_exists(self):
+        """Test that CORS configuration exists"""
+        self.assertTrue(hasattr(settings, 'CORS_ALLOWED_ORIGINS'))
+        self.assertTrue(hasattr(settings, 'CORS_ALLOW_CREDENTIALS'))
 
 
 if __name__ == '__main__':

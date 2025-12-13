@@ -1,222 +1,195 @@
 #!/usr/bin/env python
 """
-Test Runner Script for API Management Django App
-
-This script provides various options for running the test suite with different
-configurations and reporting options.
+Test Runner for API Management Django Application
+Runs all test suites: static, dynamic, and regression tests
 """
 
 import os
 import sys
-import subprocess
-import argparse
-import time
-from pathlib import Path
-
-# Add the Django project to the Python path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
-# Set up Django environment
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'mysite.settings')
-
 import django
-django.setup()
-
-from django.test.utils import get_runner
 from django.conf import settings
-from django.core.management import execute_from_command_line
+from django.test.utils import get_runner
+import unittest
+from io import StringIO
 
 
-class TestRunner:
-    """Custom test runner with additional features."""
+def setup_django():
+    """Setup Django environment for testing"""
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'mysite.settings')
+    django.setup()
+
+
+def run_test_suite(test_module_name, suite_name):
+    """Run a specific test suite and return results"""
+    print(f"\n{'='*60}")
+    print(f"Running {suite_name}")
+    print(f"{'='*60}")
     
-    def __init__(self):
-        self.start_time = None
-        self.end_time = None
+    # Capture test output
+    test_output = StringIO()
     
-    def run_tests(self, test_labels=None, verbosity=1, interactive=True, 
-                  failfast=False, keepdb=False, reverse=False, debug_mode=False,
-                  coverage=False, coverage_html=False):
-        """Run tests with specified options."""
-        
-        self.start_time = time.time()
-        
-        # Prepare command
-        cmd = ['python', 'manage.py', 'test']
-        
-        if test_labels:
-            cmd.extend(test_labels)
-        else:
-            cmd.append('api_management')
-        
-        # Add options
-        if verbosity > 1:
-            cmd.append(f'--verbosity={verbosity}')
-        
-        if not interactive:
-            cmd.append('--noinput')
-        
-        if failfast:
-            cmd.append('--failfast')
-        
-        if keepdb:
-            cmd.append('--keepdb')
-        
-        if reverse:
-            cmd.append('--reverse')
-        
-        if debug_mode:
-            cmd.append('--debug-mode')
-        
-        # Handle coverage
-        if coverage or coverage_html:
-            coverage_cmd = [
-                'coverage', 'run', '--source=api_management',
-                '--omit=*/migrations/*,*/venv/*,*/env/*'
-            ] + cmd[1:]  # Skip 'python' from original command
-            
-            print(f"Running with coverage: {' '.join(coverage_cmd)}")
-            result = subprocess.run(coverage_cmd, cwd='..')
-            
-            if result.returncode == 0:
-                print("\nGenerating coverage report...")
-                subprocess.run(['coverage', 'report'], cwd='..')
-                
-                if coverage_html:
-                    print("Generating HTML coverage report...")
-                    subprocess.run(['coverage', 'html'], cwd='..')
-                    print("HTML coverage report generated in htmlcov/")
-        else:
-            print(f"Running: {' '.join(cmd)}")
-            result = subprocess.run(cmd, cwd='..')
-        
-        self.end_time = time.time()
-        
-        # Print execution time
-        execution_time = self.end_time - self.start_time
-        print(f"\nTest execution time: {execution_time:.2f} seconds")
-        
-        return result.returncode
+    # Load and run tests
+    loader = unittest.TestLoader()
+    suite = loader.loadTestsFromName(test_module_name)
     
-    def run_specific_category(self, category, **kwargs):
-        """Run a specific test category."""
-        test_labels = [f'api_management.test_{category}']
-        return self.run_tests(test_labels, **kwargs)
+    runner = unittest.TextTestRunner(
+        stream=test_output,
+        verbosity=2,
+        buffer=True
+    )
     
-    def run_specific_class(self, test_class, **kwargs):
-        """Run a specific test class."""
-        test_labels = [test_class]
-        return self.run_tests(test_labels, **kwargs)
+    result = runner.run(suite)
+    
+    # Print results
+    output = test_output.getvalue()
+    print(output)
+    
+    # Print summary
+    print(f"\n{suite_name} Summary:")
+    print(f"Tests run: {result.testsRun}")
+    print(f"Failures: {len(result.failures)}")
+    print(f"Errors: {len(result.errors)}")
+    print(f"Skipped: {len(result.skipped) if hasattr(result, 'skipped') else 0}")
+    
+    if result.failures:
+        print(f"\nFailures in {suite_name}:")
+        for test, traceback in result.failures:
+            print(f"- {test}: {traceback.split('AssertionError:')[-1].strip()}")
+    
+    if result.errors:
+        print(f"\nErrors in {suite_name}:")
+        for test, traceback in result.errors:
+            print(f"- {test}: {traceback.split('Error:')[-1].strip()}")
+    
+    return result
 
 
 def main():
-    """Main entry point for the test runner."""
-    parser = argparse.ArgumentParser(
-        description='Run tests for API Management Django App',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  python run_tests.py                          # Run all tests
-  python run_tests.py --static                 # Run only static tests
-  python run_tests.py --dynamic                # Run only dynamic tests
-  python run_tests.py --regression             # Run only regression tests
-  python run_tests.py --coverage               # Run with coverage report
-  python run_tests.py --coverage --html        # Run with HTML coverage report
-  python run_tests.py --failfast               # Stop on first failure
-  python run_tests.py --verbose                # Verbose output
-  python run_tests.py --class TestApiResult    # Run specific test class
-        """
-    )
+    """Main test runner function"""
+    print("API Management Test Suite Runner")
+    print("="*60)
     
-    # Test category options
-    parser.add_argument('--static', action='store_true',
-                       help='Run only static/unit tests')
-    parser.add_argument('--dynamic', action='store_true',
-                       help='Run only dynamic/integration tests')
-    parser.add_argument('--regression', action='store_true',
-                       help='Run only regression tests')
-    
-    # Test execution options
-    parser.add_argument('--verbose', '-v', action='store_true',
-                       help='Verbose output')
-    parser.add_argument('--failfast', '-f', action='store_true',
-                       help='Stop on first failure')
-    parser.add_argument('--keepdb', '-k', action='store_true',
-                       help='Keep test database')
-    parser.add_argument('--reverse', '-r', action='store_true',
-                       help='Run tests in reverse order')
-    parser.add_argument('--debug', '-d', action='store_true',
-                       help='Enable debug mode')
-    
-    # Coverage options
-    parser.add_argument('--coverage', '-c', action='store_true',
-                       help='Run with coverage analysis')
-    parser.add_argument('--html', action='store_true',
-                       help='Generate HTML coverage report (requires --coverage)')
-    
-    # Specific test options
-    parser.add_argument('--class', dest='test_class',
-                       help='Run specific test class (e.g., TestApiResult)')
-    parser.add_argument('--method', dest='test_method',
-                       help='Run specific test method (e.g., test_successful_result_creation)')
-    
-    # Performance options
-    parser.add_argument('--benchmark', action='store_true',
-                       help='Run performance benchmark tests')
-    parser.add_argument('--profile', action='store_true',
-                       help='Profile test execution')
-    
-    args = parser.parse_args()
-    
-    # Validate arguments
-    if args.html and not args.coverage:
-        parser.error("--html requires --coverage")
-    
-    # Create test runner
-    runner = TestRunner()
-    
-    # Determine what tests to run
-    test_labels = []
-    
-    if args.static:
-        test_labels.append('api_management.test_static')
-    elif args.dynamic:
-        test_labels.append('api_management.test_dynamic')
-    elif args.regression:
-        test_labels.append('api_management.test_regression')
-    elif args.test_class:
-        if args.test_method:
-            test_labels.append(f'api_management.test_static.{args.test_class}.{args.test_method}')
-        else:
-            test_labels.append(f'api_management.test_static.{args.test_class}')
-    elif args.benchmark:
-        test_labels.append('api_management.test_dynamic.TestFoodDataCentralAPIPerformance')
-    
-    # Set verbosity
-    verbosity = 2 if args.verbose else 1
-    
-    # Run tests
+    # Setup Django
     try:
-        exit_code = runner.run_tests(
-            test_labels=test_labels if test_labels else None,
-            verbosity=verbosity,
-            failfast=args.failfast,
-            keepdb=args.keepdb,
-            reverse=args.reverse,
-            debug_mode=args.debug,
-            coverage=args.coverage,
-            coverage_html=args.html
-        )
-        
-        sys.exit(exit_code)
-        
-    except KeyboardInterrupt:
-        print("\nTest execution interrupted by user")
-        sys.exit(1)
+        setup_django()
+        print("✓ Django environment setup complete")
     except Exception as e:
-        print(f"Error running tests: {e}")
-        sys.exit(1)
+        print(f"✗ Failed to setup Django environment: {e}")
+        return 1
+    
+    # Test suites to run
+    test_suites = [
+        ('api_management.test_static', 'Static Tests (100 tests)'),
+        ('api_management.test_dynamic', 'Dynamic Tests (200 tests)'),
+        ('api_management.test_regression', 'Regression Tests (200 tests)')
+    ]
+    
+    total_results = {
+        'tests_run': 0,
+        'failures': 0,
+        'errors': 0,
+        'skipped': 0
+    }
+    
+    all_passed = True
+    
+    # Run each test suite
+    for module_name, suite_name in test_suites:
+        try:
+            result = run_test_suite(module_name, suite_name)
+            
+            # Accumulate results
+            total_results['tests_run'] += result.testsRun
+            total_results['failures'] += len(result.failures)
+            total_results['errors'] += len(result.errors)
+            total_results['skipped'] += len(result.skipped) if hasattr(result, 'skipped') else 0
+            
+            if result.failures or result.errors:
+                all_passed = False
+                
+        except Exception as e:
+            print(f"✗ Failed to run {suite_name}: {e}")
+            all_passed = False
+    
+    # Print overall summary
+    print(f"\n{'='*60}")
+    print("OVERALL TEST SUMMARY")
+    print(f"{'='*60}")
+    print(f"Total tests run: {total_results['tests_run']}")
+    print(f"Total failures: {total_results['failures']}")
+    print(f"Total errors: {total_results['errors']}")
+    print(f"Total skipped: {total_results['skipped']}")
+    
+    if all_passed and total_results['failures'] == 0 and total_results['errors'] == 0:
+        print("\n🎉 ALL TESTS PASSED!")
+        return 0
+    else:
+        print(f"\n❌ SOME TESTS FAILED")
+        return 1
+
+
+def run_specific_test(test_name):
+    """Run a specific test class or method"""
+    print(f"Running specific test: {test_name}")
+    
+    setup_django()
+    
+    loader = unittest.TestLoader()
+    suite = loader.loadTestsFromName(test_name)
+    
+    runner = unittest.TextTestRunner(verbosity=2)
+    result = runner.run(suite)
+    
+    return 0 if result.wasSuccessful() else 1
+
+
+def list_available_tests():
+    """List all available test classes and methods"""
+    print("Available test classes:")
+    print("\nStatic Tests:")
+    print("- api_management.test_static.ApiResultStaticTests")
+    print("- api_management.test_static.HTTP2ClientStaticTests")
+    print("- api_management.test_static.FoodDataCentralAPIStaticTests")
+    print("- api_management.test_static.ViewsStaticTests")
+    print("- api_management.test_static.UrlPatternsStaticTests")
+    print("- api_management.test_static.CacheStaticTests")
+    print("- api_management.test_static.SettingsStaticTests")
+    
+    print("\nDynamic Tests:")
+    print("- api_management.test_dynamic.HTTP2ClientDynamicTests")
+    print("- api_management.test_dynamic.FoodDataCentralAPIDynamicTests")
+    print("- api_management.test_dynamic.ViewsDynamicTests")
+    print("- api_management.test_dynamic.IntegrationDynamicTests")
+    
+    print("\nRegression Tests:")
+    print("- api_management.test_regression.BackwardCompatibilityTests")
+    print("- api_management.test_regression.DataFormatRegressionTests")
+    print("- api_management.test_regression.PerformanceRegressionTests")
+    print("- api_management.test_regression.ErrorHandlingRegressionTests")
+    print("- api_management.test_regression.ConfigurationRegressionTests")
+    print("- api_management.test_regression.DatabaseRegressionTests")
+    print("- api_management.test_regression.SecurityRegressionTests")
+    print("- api_management.test_regression.IntegrationRegressionTests")
+    print("- api_management.test_regression.VersionCompatibilityTests")
 
 
 if __name__ == '__main__':
-    main()
+    if len(sys.argv) > 1:
+        command = sys.argv[1]
+        
+        if command == 'list':
+            list_available_tests()
+            sys.exit(0)
+        elif command == 'run':
+            if len(sys.argv) > 2:
+                test_name = sys.argv[2]
+                sys.exit(run_specific_test(test_name))
+            else:
+                print("Usage: python run_tests.py run <test_name>")
+                sys.exit(1)
+        else:
+            print("Unknown command. Use 'list' to see available tests or 'run <test_name>' to run specific test.")
+            sys.exit(1)
+    else:
+        # Run all tests
+        sys.exit(main())

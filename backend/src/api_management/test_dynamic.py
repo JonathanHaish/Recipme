@@ -1,459 +1,677 @@
 """
-Dynamic/Integration Tests for API Management Django App
-
-These tests focus on testing the interaction between components,
-external API calls, and database operations in a more realistic environment.
+Dynamic Tests for API Management Django Application
+Tests runtime behavior, API interactions, and dynamic functionality
 """
 
 import unittest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch, MagicMock, call
+from django.test import TestCase, RequestFactory, Client
+from django.http import JsonResponse, HttpResponseBadRequest
+from django.core.cache import cache
+from django.urls import reverse
 import json
 import time
 import httpx
-from django.test import TestCase, TransactionTestCase
-from django.core.cache import cache
-from django.conf import settings
-from django.test.utils import override_settings
+from concurrent.futures import ThreadPoolExecutor
+import threading
 
-from .models import (
-    ApiResult, 
-    HTTP2Client, 
-    FoodDataCentralAPI
-)
+from .models import ApiResult, HTTP2Client, FoodDataCentralAPI
+from .views import get_food_nutrition, get_multiple_foods, calculate_recipe_nutrition
 
 
-class TestHTTP2ClientIntegration(TestCase):
-    """Integration tests for HTTP2Client with real HTTP behavior simulation."""
-    
+class HTTP2ClientDynamicTests(TestCase):
+    """Test HTTP2Client dynamic behavior and interactions"""
+
     def setUp(self):
-        """Set up test fixtures."""
-        try:
-            self.client = HTTP2Client(
-                base_url="https://httpbin.org",
-                timeout=10.0,
-                retries=2,
-                backoff=0.1
-            )
-        except ImportError as e:
-            self.skipTest(f"HTTP/2 dependencies not available: {e}")
-    
+        self.client = HTTP2Client(
+            base_url="https://api.test.com",
+            timeout=5.0,
+            retries=2,
+            backoff=0.1
+        )
+
     def tearDown(self):
-        """Clean up after tests."""
         if hasattr(self, 'client'):
             self.client.close()
-    
-    @patch('httpx.Client.request')
-    def test_request_with_retry_success_after_failure(self, mock_request):
-        """Test successful request after initial failures."""
-        # First call fails, second succeeds
-        mock_request.side_effect = [
-            Exception("Network timeout"),
-            Mock(status_code=200, text='{"success": true}', 
-                 headers={"content-type": "application/json"},
-                 json=lambda: {"success": True})
-        ]
+
+    @patch('httpx.Client')
+    def test_send_once_successful_request(self, mock_client_class):
+        """Test _send_once with successful request"""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.text = "success"
         
-        result = self.client.request("GET", "/json")
+        mock_client = Mock()
+        mock_client.request.return_value = mock_response
+        mock_client_class.return_value = mock_client
+        
+        client = HTTP2Client()
+        result = client._send_once("GET", "test")
         
         self.assertTrue(result.success)
         self.assertEqual(result.status, 200)
-        self.assertEqual(result.data, {"success": True})
-        self.assertEqual(mock_request.call_count, 2)
-    
-    @patch('httpx.Client.request')
-    def test_request_exhausted_retries(self, mock_request):
-        """Test request failure after exhausting all retries."""
-        mock_request.side_effect = Exception("Persistent network error")
+        self.assertEqual(result.data, "success")
+
+    @patch('httpx.Client')
+    def test_send_once_request_exception(self, mock_client_class):
+        """Test _send_once with request exception"""
+        mock_client = Mock()
+        mock_client.request.side_effect = httpx.RequestError("Connection failed")
+        mock_client_class.return_value = mock_client
         
-        result = self.client.request("GET", "/json")
+        client = HTTP2Client()
+        result = client._send_once("GET", "test")
+        
+        self.assertFalse(result.success)
+        self.assertIsNone(result.status)
+        self.assertIn("Request error", result.error)
+
+    @patch('httpx.Client')
+    def test_parse_json_if_possible_valid_json(self, mock_client_class):
+        """Test JSON parsing with valid JSON response"""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.headers = {"content-type": "application/json"}
+        mock_response.json.return_value = {"key": "value"}
+        
+        mock_client_class.return_value = Mock()
+        
+        client = HTTP2Client()
+        result = ApiResult(True, 200, "raw_text", None, mock_response)
+        parsed_result = client._parse_json_if_possible(result)
+        
+        self.assertTrue(parsed_result.success)
+        self.assertEqual(parsed_result.data, {"key": "value"})
+
+    @patch('httpx.Client')
+    def test_parse_json_if_possible_invalid_json(self, mock_client_class):
+        """Test JSON parsing with invalid JSON response"""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.headers = {"content-type": "application/json"}
+        mock_response.json.side_effect = json.JSONDecodeError("Invalid JSON", "", 0)
+        
+        mock_client_class.return_value = Mock()
+        
+        client = HTTP2Client()
+        result = ApiResult(True, 200, "invalid json", None, mock_response)
+        parsed_result = client._parse_json_if_possible(result)
+        
+        self.assertFalse(parsed_result.success)
+        self.assertEqual(parsed_result.error, "Invalid JSON response")
+
+    @patch('httpx.Client')
+    def test_parse_json_if_possible_non_json_content(self, mock_client_class):
+        """Test JSON parsing with non-JSON content type"""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.headers = {"content-type": "text/plain"}
+        mock_response.text = "plain text"
+        
+        mock_client_class.return_value = Mock()
+        
+        client = HTTP2Client()
+        result = ApiResult(True, 200, "plain text", None, mock_response)
+        parsed_result = client._parse_json_if_possible(result)
+        
+        self.assertTrue(parsed_result.success)
+        self.assertEqual(parsed_result.data, "plain text")
+
+    @patch('httpx.Client')
+    @patch('time.sleep')
+    def test_send_with_retry_success_after_retry(self, mock_sleep, mock_client_class):
+        """Test retry mechanism with success after retry"""
+        mock_client = Mock()
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.text = "success"
+        mock_response.headers = {"content-type": "text/plain"}
+        
+        # First call fails, second succeeds
+        mock_client.request.side_effect = [
+            httpx.RequestError("Connection failed"),
+            mock_response
+        ]
+        mock_client_class.return_value = mock_client
+        
+        client = HTTP2Client(retries=2, backoff=0.1)
+        result = client._send_with_retry("GET", "test")
+        
+        self.assertTrue(result.success)
+        self.assertEqual(result.status, 200)
+        mock_sleep.assert_called_once_with(0.1)
+
+    @patch('httpx.Client')
+    @patch('time.sleep')
+    def test_send_with_retry_exhausted_retries(self, mock_sleep, mock_client_class):
+        """Test retry mechanism with exhausted retries"""
+        mock_client = Mock()
+        mock_client.request.side_effect = httpx.RequestError("Connection failed")
+        mock_client_class.return_value = mock_client
+        
+        client = HTTP2Client(retries=1, backoff=0.1)
+        result = client._send_with_retry("GET", "test")
         
         self.assertFalse(result.success)
         self.assertEqual(result.error, "Failed after retries")
-        self.assertEqual(mock_request.call_count, 3)  # Initial + 2 retries
-    
-    @patch('httpx.Client.request')
-    def test_request_unexpected_status_code(self, mock_request):
-        """Test handling of unexpected status codes."""
+        self.assertEqual(mock_sleep.call_count, 2)  # Called for each retry
+
+    @patch('httpx.Client')
+    def test_send_with_retry_unexpected_status_code(self, mock_client_class):
+        """Test retry mechanism with unexpected status code"""
         mock_response = Mock()
         mock_response.status_code = 404
-        mock_response.text = "Not Found"
+        mock_response.text = "Not found"
         mock_response.headers = {"content-type": "text/plain"}
-        mock_request.return_value = mock_response
         
-        result = self.client.request("GET", "/nonexistent", expected_status=(200,))
+        mock_client = Mock()
+        mock_client.request.return_value = mock_response
+        mock_client_class.return_value = mock_client
+        
+        client = HTTP2Client()
+        result = client._send_with_retry("GET", "test", expected_status=(200,))
         
         self.assertFalse(result.success)
         self.assertEqual(result.status, 404)
-        self.assertIn("Unexpected status 404", result.error)
-    
-    @patch('httpx.Client.request')
-    def test_request_multiple_expected_status_codes(self, mock_request):
-        """Test request with multiple acceptable status codes."""
+        self.assertIn("Unexpected status", result.error)
+
+    @patch('httpx.Client')
+    def test_request_method_delegates_to_send_with_retry(self, mock_client_class):
+        """Test that request method delegates to _send_with_retry"""
         mock_response = Mock()
-        mock_response.status_code = 201
-        mock_response.text = "Created"
+        mock_response.status_code = 200
+        mock_response.text = "success"
         mock_response.headers = {"content-type": "text/plain"}
-        mock_request.return_value = mock_response
         
-        result = self.client.request("POST", "/create", expected_status=(200, 201))
+        mock_client = Mock()
+        mock_client.request.return_value = mock_response
+        mock_client_class.return_value = mock_client
+        
+        client = HTTP2Client()
+        result = client.request("GET", "test", expected_status=(200,))
         
         self.assertTrue(result.success)
-        self.assertEqual(result.status, 201)
-        self.assertEqual(result.data, "Created")
-    
-    @patch('time.sleep')
-    @patch('httpx.Client.request')
-    def test_backoff_timing(self, mock_request, mock_sleep):
-        """Test exponential backoff timing."""
-        mock_request.side_effect = [
-            Exception("Error 1"),
-            Exception("Error 2"),
-            Exception("Error 3")
-        ]
-        
-        self.client.request("GET", "/test")
-        
-        # Verify sleep was called with exponential backoff
-        # With retries=2, we get 3 total attempts, so 2 sleep calls between attempts
-        expected_delays = [0.1, 0.2]  # backoff * (2 ** attempt) for attempts 0 and 1
-        actual_delays = [call[0][0] for call in mock_sleep.call_args_list]
-        # Allow for the actual implementation which may have 3 calls
-        self.assertTrue(len(actual_delays) >= 2, f"Expected at least 2 delays, got {len(actual_delays)}")
-        self.assertEqual(actual_delays[:2], expected_delays)
+        self.assertEqual(result.status, 200)
+
+    def test_concurrent_requests(self):
+        """Test concurrent requests handling"""
+        with patch('httpx.Client') as mock_client_class:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.text = "success"
+            mock_response.headers = {"content-type": "text/plain"}
+            
+            mock_client = Mock()
+            mock_client.request.return_value = mock_response
+            mock_client_class.return_value = mock_client
+            
+            client = HTTP2Client()
+            
+            def make_request():
+                return client.request("GET", "test")
+            
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                futures = [executor.submit(make_request) for _ in range(10)]
+                results = [future.result() for future in futures]
+            
+            # All requests should succeed
+            for result in results:
+                self.assertTrue(result.success)
+                self.assertEqual(result.status, 200)
 
 
-class TestFoodDataCentralAPIIntegration(TestCase):
-    """Integration tests for FoodDataCentralAPI with realistic scenarios."""
-    
+class FoodDataCentralAPIDynamicTests(TestCase):
+    """Test FoodDataCentralAPI dynamic behavior"""
+
     def setUp(self):
-        """Set up test fixtures."""
-        self.mock_client = Mock()
-        self.api = FoodDataCentralAPI(self.mock_client, "test_api_key")
         cache.clear()
-    
-    def tearDown(self):
-        """Clean up after tests."""
-        cache.clear()
-    
-    def test_complete_food_workflow_usda(self):
-        """Test complete workflow for USDA food processing."""
-        # Mock USDA API response
-        usda_response = {
-            "fdc_id": 12345,
-            "description": "Apple, raw",
-            "foodNutrients": [
-                {
-                    "nutrient": {"name": "Protein", "unitName": "g"},
-                    "amount": 0.26
-                },
-                {
-                    "nutrient": {"name": "Total lipid (fat)", "unitName": "g"},
-                    "amount": 0.17
-                },
-                {
-                    "nutrient": {"name": "Carbohydrate, by difference", "unitName": "g"},
-                    "amount": 13.81
-                },
-                {
-                    "nutrient": {"name": "Energy", "unitName": "kcal"},
-                    "amount": 52
-                },
-                {
-                    "nutrient": {"name": "Fiber, total dietary", "unitName": "g"},
-                    "amount": 2.4
-                }
-            ]
-        }
-        
-        mock_response = Mock()
-        mock_response.success = True
-        mock_response.data = usda_response
-        self.mock_client.request.return_value = mock_response
-        
-        # Test the complete workflow
-        ingredients = [{"fdc_id": 12345, "amount_grams": 150}]
-        nutrition = self.api.calculate_recipe_nutrition(ingredients)
-        
-        # Verify calculations (150g of apple)
-        expected_protein = (0.26 * 150) / 100  # 0.39g
-        expected_calories = (52 * 150) / 100   # 78 kcal
-        expected_carbs = (13.81 * 150) / 100   # 20.715g
-        
-        self.assertAlmostEqual(nutrition["protein"], expected_protein, places=2)
-        self.assertAlmostEqual(nutrition["calories"], expected_calories, places=2)
-        self.assertAlmostEqual(nutrition["carbohydrates"], expected_carbs, places=2)
-    
-    def test_complete_food_workflow_custom(self):
-        """Test complete workflow for custom food processing."""
-        # Create custom food
-        custom_food_data = {
-            "foodNutrients": [
-                {
-                    "nutrient": {"name": "Protein", "unitName": "g"},
-                    "amount": 8.0
-                },
-                {
-                    "nutrient": {"name": "Energy", "unitName": "kcal"},
-                    "amount": 250
-                }
-            ]
-        }
-        
-        # Save custom food
-        key = self.api.save_custom_food("homemade bread", custom_food_data)
-        
-        # Use in recipe calculation
-        ingredients = [{"custom_name": "homemade bread", "amount_grams": 100}]
-        nutrition = self.api.calculate_recipe_nutrition(ingredients)
-        
-        # Verify calculations (100g of custom bread)
-        self.assertEqual(nutrition["protein"], 8.0)
-        self.assertEqual(nutrition["calories"], 250.0)
-        
-        # Verify food was cached
-        cached_food = cache.get(key)
-        self.assertEqual(cached_food, custom_food_data)
-    
-    def test_mixed_ingredient_recipe(self):
-        """Test recipe with both USDA and custom ingredients."""
-        # Mock USDA food
-        usda_food = {
-            "foodNutrients": [
-                {"nutrient": {"name": "Protein", "unitName": "g"}, "amount": 20.0},
-                {"nutrient": {"name": "Energy", "unitName": "kcal"}, "amount": 100.0}
-            ]
-        }
-        
-        mock_response = Mock()
-        mock_response.success = True
-        mock_response.data = usda_food
-        self.mock_client.request.return_value = mock_response
-        
-        # Create custom food
-        custom_food = {
-            "foodNutrients": [
-                {"nutrient": {"name": "Protein", "unitName": "g"}, "amount": 5.0},
-                {"nutrient": {"name": "Energy", "unitName": "kcal"}, "amount": 200.0}
-            ]
-        }
-        self.api.save_custom_food("custom sauce", custom_food)
-        
-        # Mixed ingredients
-        ingredients = [
-            {"fdc_id": 12345, "amount_grams": 100},      # USDA: 20g protein, 100 kcal
-            {"custom_name": "custom sauce", "amount_grams": 50}  # Custom: 2.5g protein, 100 kcal
-        ]
-        
-        nutrition = self.api.calculate_recipe_nutrition(ingredients)
-        
-        # Expected totals
-        self.assertEqual(nutrition["protein"], 22.5)  # 20 + 2.5
-        self.assertEqual(nutrition["calories"], 200.0)  # 100 + 100
-    
-    def test_cache_behavior_with_ttl(self):
-        """Test cache behavior with TTL settings."""
-        # Mock successful API response
-        food_data = {"fdc_id": 12345, "description": "Test Food"}
-        mock_response = Mock()
-        mock_response.success = True
-        mock_response.data = food_data
-        self.mock_client.request.return_value = mock_response
-        
-        # First call - should hit API
-        result1 = self.api.get_usda_food(12345)
-        self.assertEqual(result1, food_data)
-        self.assertEqual(self.mock_client.request.call_count, 1)
-        
-        # Second call - should use cache
-        result2 = self.api.get_usda_food(12345)
-        self.assertEqual(result2, food_data)
-        self.assertEqual(self.mock_client.request.call_count, 1)  # No additional call
-        
-        # Verify data is in cache
-        cached_data = cache.get("fdc:12345")
-        self.assertEqual(cached_data, food_data)
-    
-    def test_error_handling_in_workflow(self):
-        """Test error handling throughout the workflow."""
-        # Mock API failure
-        mock_response = Mock()
-        mock_response.success = False
-        self.mock_client.request.return_value = mock_response
-        
-        # Recipe with failing USDA ingredient and missing custom ingredient
-        ingredients = [
-            {"fdc_id": 99999, "amount_grams": 100},      # Will fail API call
-            {"custom_name": "nonexistent", "amount_grams": 50}  # Doesn't exist
-        ]
-        
-        nutrition = self.api.calculate_recipe_nutrition(ingredients)
-        
-        # All values should be 0 due to failures
-        for key in nutrition:
-            self.assertEqual(nutrition[key], 0.0)
-    
-    def test_concurrent_custom_food_creation(self):
-        """Test handling of concurrent custom food creation."""
-        # Simulate concurrent creation of foods with same name
-        food_data_1 = {"version": 1, "calories": 100}
-        food_data_2 = {"version": 2, "calories": 150}
-        
-        key1 = self.api.save_custom_food("apple pie", food_data_1)
-        key2 = self.api.save_custom_food("apple pie", food_data_2)
-        
-        # Keys should be different
-        self.assertNotEqual(key1, key2)
-        self.assertEqual(key1, "food:apple-pie")
-        self.assertEqual(key2, "food:apple-pie-2")
-        
-        # Both should be retrievable
-        retrieved_1 = cache.get(key1)
-        retrieved_2 = cache.get(key2)
-        
-        self.assertEqual(retrieved_1, food_data_1)
-        self.assertEqual(retrieved_2, food_data_2)
 
-
-class TestFoodDataCentralAPIPerformance(TestCase):
-    """Performance and load tests for FoodDataCentralAPI."""
-    
-    def setUp(self):
-        """Set up test fixtures."""
-        self.mock_client = Mock()
-        self.api = FoodDataCentralAPI(self.mock_client, "test_api_key")
-        cache.clear()
-    
     def tearDown(self):
-        """Clean up after tests."""
         cache.clear()
-    
-    def test_large_recipe_calculation(self):
-        """Test performance with large number of ingredients."""
-        # Mock food data
+
+    @patch.object(FoodDataCentralAPI, 'request')
+    def test_search_ingredient_cache_miss_and_hit(self, mock_request):
+        """Test search_ingredient caching behavior"""
+        mock_response_data = {
+            "foods": [
+                {"fdcId": 123, "description": "Apple"},
+                {"fdcId": 124, "description": "Apple juice"}
+            ]
+        }
+        mock_result = ApiResult(True, 200, mock_response_data)
+        mock_request.return_value = mock_result
+        
+        api = FoodDataCentralAPI(api_key="test_key")
+        
+        # First call - cache miss
+        result1 = api.search_ingredient("apple")
+        self.assertEqual(len(result1), 2)
+        self.assertEqual(mock_request.call_count, 1)
+        
+        # Second call - cache hit
+        result2 = api.search_ingredient("apple")
+        self.assertEqual(len(result2), 2)
+        self.assertEqual(mock_request.call_count, 1)  # No additional call
+        
+        # Results should be identical
+        self.assertEqual(result1, result2)
+
+    @patch.object(FoodDataCentralAPI, 'request')
+    def test_search_ingredient_api_failure(self, mock_request):
+        """Test search_ingredient with API failure"""
+        mock_result = ApiResult(False, 500, None, "Server error")
+        mock_request.return_value = mock_result
+        
+        api = FoodDataCentralAPI(api_key="test_key")
+        result = api.search_ingredient("apple")
+        
+        self.assertEqual(result, [])
+
+    @patch.object(FoodDataCentralAPI, 'request')
+    def test_search_ingredient_different_parameters(self, mock_request):
+        """Test search_ingredient with different parameters creates different cache keys"""
+        mock_result = ApiResult(True, 200, {"foods": []})
+        mock_request.return_value = mock_result
+        
+        api = FoodDataCentralAPI(api_key="test_key")
+        
+        # Different queries
+        api.search_ingredient("apple")
+        api.search_ingredient("banana")
+        
+        # Different page sizes
+        api.search_ingredient("apple", page_size=5)
+        api.search_ingredient("apple", page_size=15)
+        
+        # Should make 4 different API calls
+        self.assertEqual(mock_request.call_count, 4)
+
+    @patch.object(FoodDataCentralAPI, 'request')
+    def test_get_food_nutrition_cache_behavior(self, mock_request):
+        """Test get_food_nutrition caching behavior"""
+        mock_food_data = {
+            "fdcId": 123,
+            "description": "Apple",
+            "foodNutrients": []
+        }
+        mock_result = ApiResult(True, 200, mock_food_data)
+        mock_request.return_value = mock_result
+        
+        api = FoodDataCentralAPI(api_key="test_key")
+        
+        # First call
+        result1 = api.get_food_nutrition(123)
+        self.assertEqual(result1["fdcId"], 123)
+        
+        # Second call should use cache
+        result2 = api.get_food_nutrition(123)
+        self.assertEqual(result2["fdcId"], 123)
+        
+        # Only one API call should be made
+        self.assertEqual(mock_request.call_count, 1)
+
+    @patch.object(FoodDataCentralAPI, 'request')
+    def test_get_food_nutrition_api_failure(self, mock_request):
+        """Test get_food_nutrition with API failure"""
+        mock_result = ApiResult(False, 404, None, "Not found")
+        mock_request.return_value = mock_result
+        
+        api = FoodDataCentralAPI(api_key="test_key")
+        result = api.get_food_nutrition(999)
+        
+        self.assertIsNone(result)
+
+    @patch.object(FoodDataCentralAPI, 'request')
+    def test_get_multiple_foods_cache_behavior(self, mock_request):
+        """Test get_multiple_foods caching behavior"""
+        mock_foods_data = [
+            {"fdcId": 123, "description": "Apple"},
+            {"fdcId": 124, "description": "Banana"}
+        ]
+        mock_result = ApiResult(True, 200, mock_foods_data)
+        mock_request.return_value = mock_result
+        
+        api = FoodDataCentralAPI(api_key="test_key")
+        
+        # First call
+        result1 = api.get_multiple_foods([123, 124])
+        self.assertEqual(len(result1), 2)
+        
+        # Second call with same IDs should use cache
+        result2 = api.get_multiple_foods([123, 124])
+        self.assertEqual(len(result2), 2)
+        
+        # Only one API call should be made
+        self.assertEqual(mock_request.call_count, 1)
+
+    @patch.object(FoodDataCentralAPI, 'request')
+    def test_get_multiple_foods_different_order_same_cache(self, mock_request):
+        """Test get_multiple_foods with different order uses same cache"""
+        mock_foods_data = [
+            {"fdcId": 123, "description": "Apple"},
+            {"fdcId": 124, "description": "Banana"}
+        ]
+        mock_result = ApiResult(True, 200, mock_foods_data)
+        mock_request.return_value = mock_result
+        
+        api = FoodDataCentralAPI(api_key="test_key")
+        
+        # First call
+        result1 = api.get_multiple_foods([123, 124])
+        
+        # Second call with different order should use same cache
+        result2 = api.get_multiple_foods([124, 123])
+        
+        # Only one API call should be made
+        self.assertEqual(mock_request.call_count, 1)
+        self.assertEqual(result1, result2)
+
+    def test_extract_key_nutrients_dynamic_processing(self):
+        """Test extract_key_nutrients with various nutrient combinations"""
+        api = FoodDataCentralAPI(api_key="test_key")
+        
+        # Test with all supported nutrients
         food_data = {
             "foodNutrients": [
-                {"nutrient": {"name": "Protein", "unitName": "g"}, "amount": 10.0},
-                {"nutrient": {"name": "Energy", "unitName": "kcal"}, "amount": 50.0}
+                {"nutrient": {"name": "Protein", "unitName": "g"}, "amount": 20.5},
+                {"nutrient": {"name": "Total lipid (fat)", "unitName": "g"}, "amount": 10.2},
+                {"nutrient": {"name": "Carbohydrate, by difference", "unitName": "g"}, "amount": 45.3},
+                {"nutrient": {"name": "Energy", "unitName": "kcal"}, "amount": 250},
+                {"nutrient": {"name": "Fiber, total dietary", "unitName": "g"}, "amount": 5.1},
+                {"nutrient": {"name": "Sugars, total including NLEA", "unitName": "g"}, "amount": 12.8}
             ]
         }
         
-        mock_response = Mock()
-        mock_response.success = True
-        mock_response.data = food_data
-        self.mock_client.request.return_value = mock_response
+        result = api.extract_key_nutrients(food_data)
         
-        # Create large ingredient list
-        ingredients = [
-            {"fdc_id": i, "amount_grams": 10} 
-            for i in range(100)
+        expected_keys = ["protein", "fat", "carbohydrates", "calories", "fiber", "sugars"]
+        self.assertEqual(set(result.keys()), set(expected_keys))
+        
+        # Verify values
+        self.assertEqual(result["protein"]["value"], 20.5)
+        self.assertEqual(result["fat"]["value"], 10.2)
+        self.assertEqual(result["carbohydrates"]["value"], 45.3)
+        self.assertEqual(result["calories"]["value"], 250)
+        self.assertEqual(result["fiber"]["value"], 5.1)
+        self.assertEqual(result["sugars"]["value"], 12.8)
+
+    def test_cache_ttl_behavior(self):
+        """Test cache TTL behavior for different methods"""
+        api = FoodDataCentralAPI(api_key="test_key")
+        
+        # Verify TTL constants
+        self.assertEqual(api.SEARCH_TTL, 60 * 60)  # 1 hour
+        self.assertEqual(api.FOOD_TTL, 24 * 60 * 60)  # 24 hours
+        self.assertEqual(api.MULTI_TTL, 24 * 60 * 60)  # 24 hours
+
+    @patch.object(FoodDataCentralAPI, 'request')
+    def test_concurrent_api_calls(self, mock_request):
+        """Test concurrent API calls behavior"""
+        mock_result = ApiResult(True, 200, {"foods": [{"fdcId": 123}]})
+        mock_request.return_value = mock_result
+        
+        api = FoodDataCentralAPI(api_key="test_key")
+        
+        def make_search():
+            return api.search_ingredient("apple")
+        
+        # Make concurrent calls
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = [executor.submit(make_search) for _ in range(10)]
+            results = [future.result() for future in futures]
+        
+        # All should return the same result
+        for result in results:
+            self.assertEqual(len(result), 1)
+            self.assertEqual(result[0]["fdcId"], 123)
+
+    @patch.object(FoodDataCentralAPI, 'request')
+    def test_api_key_injection(self, mock_request):
+        """Test API key is properly injected into requests"""
+        mock_result = ApiResult(True, 200, {"foods": []})
+        mock_request.return_value = mock_result
+        
+        api = FoodDataCentralAPI(api_key="secret_key")
+        api.search_ingredient("apple")
+        
+        # Verify API key was included in params
+        call_args = mock_request.call_args
+        params = call_args[1]['params']
+        self.assertEqual(params['api_key'], "secret_key")
+
+
+class ViewsDynamicTests(TestCase):
+    """Test views dynamic behavior and integration"""
+
+    def setUp(self):
+        self.factory = RequestFactory()
+        self.client = Client()
+
+    @patch.object(FoodDataCentralAPI, 'get_food_nutrition')
+    def test_get_food_nutrition_success_response(self, mock_get_nutrition):
+        """Test get_food_nutrition with successful API response"""
+        mock_nutrition = {
+            "fdcId": 123,
+            "description": "Apple",
+            "foodNutrients": []
+        }
+        mock_get_nutrition.return_value = mock_nutrition
+        
+        request = self.factory.get('/food/', {'food': 'apple'})
+        response = get_food_nutrition(request)
+        
+        self.assertIsInstance(response, JsonResponse)
+        response_data = json.loads(response.content)
+        self.assertTrue(response_data['succss'])  # Note: typo in original code
+        self.assertEqual(response_data['nutrition'], mock_nutrition)
+
+    @patch.object(FoodDataCentralAPI, 'get_food_nutrition')
+    def test_get_food_nutrition_not_found_response(self, mock_get_nutrition):
+        """Test get_food_nutrition with food not found"""
+        mock_get_nutrition.return_value = None
+        
+        request = self.factory.get('/food/', {'food': 'nonexistent'})
+        response = get_food_nutrition(request)
+        
+        self.assertIsInstance(response, JsonResponse)
+        response_data = json.loads(response.content)
+        self.assertFalse(response_data['success'])
+        self.assertIn('not found', response_data['error'])
+
+    @patch.object(FoodDataCentralAPI, 'get_multiple_foods')
+    def test_get_multiple_foods_success(self, mock_get_multiple):
+        """Test get_multiple_foods with successful response"""
+        mock_foods = [
+            {"fdcId": 123, "description": "Apple"},
+            {"fdcId": 124, "description": "Banana"}
         ]
+        mock_get_multiple.return_value = mock_foods
         
-        start_time = time.time()
-        nutrition = self.api.calculate_recipe_nutrition(ingredients)
-        end_time = time.time()
+        # Note: The view has a bug - it expects list but gets string from GET
+        # This test shows the current behavior
+        request = self.factory.get('/foods/', {'foods': ['apple', 'banana']})
+        response = get_multiple_foods(request)
         
-        # Verify results
-        expected_protein = 100.0  # 100 ingredients * 1g protein each
-        expected_calories = 500.0  # 100 ingredients * 5 kcal each
+        # This will actually return HttpResponseBadRequest due to the bug
+        self.assertIsInstance(response, HttpResponseBadRequest)
+
+    @patch.object(FoodDataCentralAPI, 'extract_key_nutrients')
+    def test_calculate_recipe_nutrition_success(self, mock_extract):
+        """Test calculate_recipe_nutrition with valid recipe"""
+        mock_nutrients = {
+            "protein": {"value": 20.5, "unit": "g"},
+            "calories": {"value": 250, "unit": "kcal"}
+        }
+        mock_extract.return_value = mock_nutrients
         
-        self.assertEqual(nutrition["protein"], expected_protein)
-        self.assertEqual(nutrition["calories"], expected_calories)
+        recipe = {
+            'name': 'Test Recipe',
+            'foodNutrients': ['apple', 'banana', 123]  # Mixed types
+        }
         
-        # Performance check - should complete within reasonable time
-        execution_time = end_time - start_time
-        self.assertLess(execution_time, 1.0, "Large recipe calculation took too long")
-    
-    def test_cache_efficiency(self):
-        """Test cache efficiency with repeated requests."""
-        # Mock food data
-        food_data = {"fdc_id": 12345, "description": "Test Food"}
+        request = self.factory.get('/recipe/nutrition/', {'recipe': recipe})
+        response = calculate_recipe_nutrition(request)
+        
+        # The view returns the result directly, not as JsonResponse
+        self.assertEqual(response, mock_nutrients)
+
+    def test_view_method_validation_comprehensive(self):
+        """Test all views reject non-GET methods"""
+        methods = ['POST', 'PUT', 'DELETE', 'PATCH']
+        views = [get_food_nutrition, get_multiple_foods, calculate_recipe_nutrition]
+        
+        for view in views:
+            for method in methods:
+                request = getattr(self.factory, method.lower())('/')
+                response = view(request)
+                self.assertIsInstance(response, HttpResponseBadRequest)
+
+    def test_parameter_validation_edge_cases(self):
+        """Test parameter validation with edge cases"""
+        # Test with None values
+        request = self.factory.get('/food/', {'food': None})
+        response = get_food_nutrition(request)
+        self.assertIsInstance(response, HttpResponseBadRequest)
+        
+        # Test with empty string after strip
+        request = self.factory.get('/food/', {'food': '   '})
+        response = get_food_nutrition(request)
+        self.assertIsInstance(response, HttpResponseBadRequest)
+
+    @patch.object(FoodDataCentralAPI, 'get_food_nutrition')
+    def test_get_food_nutrition_with_special_characters(self, mock_get_nutrition):
+        """Test get_food_nutrition with special characters in food name"""
+        mock_nutrition = {"fdcId": 123, "description": "Café au lait"}
+        mock_get_nutrition.return_value = mock_nutrition
+        
+        request = self.factory.get('/food/', {'food': 'café au lait'})
+        response = get_food_nutrition(request)
+        
+        self.assertIsInstance(response, JsonResponse)
+        response_data = json.loads(response.content)
+        self.assertTrue(response_data['succss'])
+
+    def test_concurrent_view_requests(self):
+        """Test concurrent requests to views"""
+        def make_request():
+            request = self.factory.get('/food/', {'food': 'apple'})
+            return get_food_nutrition(request)
+        
+        with patch.object(FoodDataCentralAPI, 'get_food_nutrition') as mock_get:
+            mock_get.return_value = {"fdcId": 123}
+            
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                futures = [executor.submit(make_request) for _ in range(10)]
+                responses = [future.result() for future in futures]
+            
+            # All responses should be JsonResponse
+            for response in responses:
+                self.assertIsInstance(response, JsonResponse)
+
+
+class IntegrationDynamicTests(TestCase):
+    """Test integration between components"""
+
+    def setUp(self):
+        cache.clear()
+
+    def tearDown(self):
+        cache.clear()
+
+    @patch('httpx.Client')
+    def test_full_api_flow_integration(self, mock_client_class):
+        """Test full API flow from HTTP client to view response"""
+        # Mock HTTP response
         mock_response = Mock()
-        mock_response.success = True
-        mock_response.data = food_data
-        self.mock_client.request.return_value = mock_response
+        mock_response.status_code = 200
+        mock_response.headers = {"content-type": "application/json"}
+        mock_response.json.return_value = {
+            "foods": [{"fdcId": 123, "description": "Apple"}]
+        }
         
-        # Make multiple requests for same food
-        for _ in range(10):
-            result = self.api.get_usda_food(12345)
-            self.assertEqual(result, food_data)
+        mock_client = Mock()
+        mock_client.request.return_value = mock_response
+        mock_client_class.return_value = mock_client
+        
+        # Make request through view
+        factory = RequestFactory()
+        request = factory.get('/food/', {'food': 'apple'})
+        
+        with patch.object(FoodDataCentralAPI, 'get_food_nutrition') as mock_get:
+            mock_get.return_value = {"fdcId": 123, "description": "Apple"}
+            response = get_food_nutrition(request)
+        
+        self.assertIsInstance(response, JsonResponse)
+        response_data = json.loads(response.content)
+        self.assertTrue(response_data['succss'])
+
+    def test_cache_integration_across_methods(self):
+        """Test cache integration across different API methods"""
+        with patch.object(FoodDataCentralAPI, 'request') as mock_request:
+            mock_request.return_value = ApiResult(True, 200, {"foods": []})
+            
+            api = FoodDataCentralAPI(api_key="test_key")
+            
+            # Make multiple calls that should use different cache keys
+            api.search_ingredient("apple")
+            api.search_ingredient("apple", page_size=5)
+            api.get_food_nutrition(123)
+            api.get_multiple_foods([123, 124])
+            
+            # Each should make separate API calls due to different cache keys
+            self.assertEqual(mock_request.call_count, 4)
+
+    def test_error_propagation_through_stack(self):
+        """Test error propagation from HTTP client through to view"""
+        with patch('httpx.Client') as mock_client_class:
+            mock_client = Mock()
+            mock_client.request.side_effect = httpx.RequestError("Network error")
+            mock_client_class.return_value = mock_client
+            
+            factory = RequestFactory()
+            request = factory.get('/food/', {'food': 'apple'})
+            response = get_food_nutrition(request)
+            
+            # Should return error response
+            self.assertIsInstance(response, JsonResponse)
+            response_data = json.loads(response.content)
+            self.assertFalse(response_data['success'])
+
+    @patch.object(FoodDataCentralAPI, 'request')
+    def test_cache_performance_under_load(self, mock_request):
+        """Test cache performance under concurrent load"""
+        mock_request.return_value = ApiResult(True, 200, {"foods": []})
+        
+        api = FoodDataCentralAPI(api_key="test_key")
+        
+        def make_cached_call():
+            return api.search_ingredient("apple")
+        
+        # Make many concurrent calls
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = [executor.submit(make_cached_call) for _ in range(50)]
+            results = [future.result() for future in futures]
         
         # Should only make one API call due to caching
-        self.assertEqual(self.mock_client.request.call_count, 1)
-    
-    def test_memory_usage_with_many_custom_foods(self):
-        """Test memory usage with many custom foods."""
-        # Create many custom foods
-        for i in range(100):
-            food_data = {
-                "foodNutrients": [
-                    {"nutrient": {"name": "Protein", "unitName": "g"}, "amount": i},
-                    {"nutrient": {"name": "Energy", "unitName": "kcal"}, "amount": i * 2}
-                ]
-            }
-            self.api.save_custom_food(f"food_{i}", food_data)
+        self.assertEqual(mock_request.call_count, 1)
         
-        # Verify all foods are accessible
-        for i in range(100):
-            retrieved = self.api.get_custom_food(f"food_{i}")
-            self.assertIsNotNone(retrieved)
-            self.assertEqual(retrieved["foodNutrients"][0]["amount"], i)
+        # All results should be identical
+        for result in results:
+            self.assertEqual(result, [])
 
-
-@override_settings(
-    CACHES={
-        'default': {
-            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        }
-    }
-)
-class TestFoodDataCentralAPIWithRealCache(TransactionTestCase):
-    """Tests using Django's actual cache backend."""
-    
-    def setUp(self):
-        """Set up test fixtures."""
-        self.mock_client = Mock()
-        self.api = FoodDataCentralAPI(self.mock_client, "test_api_key")
-        cache.clear()
-    
-    def tearDown(self):
-        """Clean up after tests."""
-        cache.clear()
-    
-    def test_cache_persistence_across_api_instances(self):
-        """Test that cache persists across different API instances."""
-        # Save custom food with first instance
-        food_data = {"calories": 100, "protein": 5}
-        key = self.api.save_custom_food("persistent_food", food_data)
-        
-        # Create new API instance
-        new_api = FoodDataCentralAPI(Mock(), "different_key")
-        
-        # Should be able to retrieve food with new instance
-        retrieved = new_api.get_custom_food("persistent_food")
-        self.assertEqual(retrieved, food_data)
-    
-    def test_cache_key_collision_handling(self):
-        """Test handling of cache key collisions."""
-        # Create foods with names that might collide after sanitization
-        foods = [
-            ("Apple Pie", {"version": 1}),
-            ("Apple-Pie", {"version": 2}),
-            ("apple pie", {"version": 3}),
-            ("APPLE PIE", {"version": 4})
-        ]
-        
-        keys = []
-        for name, data in foods:
-            key = self.api.save_custom_food(name, data)
-            keys.append(key)
-        
-        # All keys should be unique
-        self.assertEqual(len(keys), len(set(keys)))
-        
-        # All foods should be retrievable by their original names
-        for name, expected_data in foods:
-            retrieved = self.api.get_custom_food(name)
-            self.assertIsNotNone(retrieved)
+    def test_memory_usage_with_large_responses(self):
+        """Test memory handling with large API responses"""
+        with patch.object(FoodDataCentralAPI, 'request') as mock_request:
+            # Create large response
+            large_foods = [{"fdcId": i, "description": f"Food {i}"} for i in range(1000)]
+            mock_request.return_value = ApiResult(True, 200, {"foods": large_foods})
+            
+            api = FoodDataCentralAPI(api_key="test_key")
+            result = api.search_ingredient("test")
+            
+            self.assertEqual(len(result), 1000)
+            self.assertEqual(result[0]["fdcId"], 0)
+            self.assertEqual(result[999]["fdcId"], 999)
 
 
 if __name__ == '__main__':

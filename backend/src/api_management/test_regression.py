@@ -1,605 +1,590 @@
 """
-Regression Tests for API Management Django App
-
-These tests ensure that previously working functionality continues to work
-after code changes, focusing on critical user workflows and edge cases
-that have caused issues in the past.
+Regression Tests for API Management Django Application
+Tests for preventing regressions and ensuring backward compatibility
 """
 
 import unittest
 from unittest.mock import Mock, patch, MagicMock
+from django.test import TestCase, RequestFactory, Client, override_settings
+from django.http import JsonResponse, HttpResponseBadRequest
+from django.core.cache import cache
+from django.urls import reverse, resolve
+from django.conf import settings
 import json
 import time
-from django.test import TestCase, TransactionTestCase
-from django.core.cache import cache
-from django.conf import settings
-from django.test.utils import override_settings
+import httpx
+import threading
+from concurrent.futures import ThreadPoolExecutor
+import sys
+import os
 
-from .models import (
-    ApiResult, 
-    HTTP2Client, 
-    FoodDataCentralAPI
-)
+from .models import ApiResult, HTTP2Client, FoodDataCentralAPI
+from .views import get_food_nutrition, get_multiple_foods, calculate_recipe_nutrition
 
 
-class TestCriticalUserWorkflows(TestCase):
-    """Regression tests for critical user workflows that must not break."""
-    
+class BackwardCompatibilityTests(TestCase):
+    """Test backward compatibility of API responses and behavior"""
+
     def setUp(self):
-        """Set up test fixtures."""
-        self.mock_client = Mock()
-        self.api = FoodDataCentralAPI(self.mock_client, "test_api_key")
-        cache.clear()
-    
-    def tearDown(self):
-        """Clean up after tests."""
-        cache.clear()
-    
-    def test_recipe_calculation_with_zero_amounts(self):
-        """
-        Regression test: Recipe calculation should handle zero amounts gracefully.
+        self.factory = RequestFactory()
+
+    def test_api_result_backward_compatibility(self):
+        """Test ApiResult maintains backward compatibility"""
+        # Test original constructor signature
+        result = ApiResult(True, 200, "data", "error", "raw")
+        self.assertTrue(result.success)
+        self.assertEqual(result.status, 200)
+        self.assertEqual(result.data, "data")
+        self.assertEqual(result.error, "error")
+        self.assertEqual(result.raw, "raw")
+
+    def test_api_result_boolean_behavior_regression(self):
+        """Test ApiResult boolean behavior hasn't changed"""
+        # Success case
+        success_result = ApiResult(True)
+        self.assertTrue(bool(success_result))
+        self.assertTrue(success_result)
         
-        Previously caused division by zero errors in scaling calculations.
-        """
+        # Failure case
+        failure_result = ApiResult(False)
+        self.assertFalse(bool(failure_result))
+        self.assertFalse(failure_result)
+
+    def test_api_result_repr_format_regression(self):
+        """Test ApiResult repr format hasn't changed"""
+        result = ApiResult(True, 200)
+        expected_format = "ApiResult(success=True, status=200)"
+        self.assertEqual(repr(result), expected_format)
+
+    def test_http2_client_constructor_backward_compatibility(self):
+        """Test HTTP2Client constructor maintains backward compatibility"""
+        # Default constructor
+        client1 = HTTP2Client()
+        self.assertIsNone(client1.base_url)
+        self.assertEqual(client1.timeout, 8.0)
+        self.assertEqual(client1.retries, 3)
+        self.assertEqual(client1.backoff, 0.5)
+        
+        # Full constructor
+        client2 = HTTP2Client("https://api.test.com", 10.0, 5, 1.0)
+        self.assertEqual(client2.base_url, "https://api.test.com")
+        self.assertEqual(client2.timeout, 10.0)
+        self.assertEqual(client2.retries, 5)
+        self.assertEqual(client2.backoff, 1.0)
+
+    def test_food_api_cache_ttl_constants_regression(self):
+        """Test FoodDataCentralAPI cache TTL constants haven't changed"""
+        self.assertEqual(FoodDataCentralAPI.SEARCH_TTL, 3600)  # 1 hour
+        self.assertEqual(FoodDataCentralAPI.FOOD_TTL, 86400)   # 24 hours
+        self.assertEqual(FoodDataCentralAPI.MULTI_TTL, 86400)  # 24 hours
+
+    @patch.object(FoodDataCentralAPI, 'get_food_nutrition')
+    def test_get_food_nutrition_response_format_regression(self, mock_get_nutrition):
+        """Test get_food_nutrition response format hasn't changed"""
+        mock_nutrition = {"fdcId": 123, "description": "Apple"}
+        mock_get_nutrition.return_value = mock_nutrition
+        
+        request = self.factory.get('/food/', {'food': 'apple'})
+        response = get_food_nutrition(request)
+        
+        self.assertIsInstance(response, JsonResponse)
+        response_data = json.loads(response.content)
+        
+        # Check response structure
+        self.assertIn('nutrition', response_data)
+        self.assertIn('succss', response_data)  # Note: original typo preserved
+        self.assertTrue(response_data['succss'])
+        self.assertEqual(response_data['nutrition'], mock_nutrition)
+
+    @patch.object(FoodDataCentralAPI, 'get_food_nutrition')
+    def test_get_food_nutrition_error_response_format_regression(self, mock_get_nutrition):
+        """Test get_food_nutrition error response format hasn't changed"""
+        mock_get_nutrition.return_value = None
+        
+        request = self.factory.get('/food/', {'food': 'nonexistent'})
+        response = get_food_nutrition(request)
+        
+        self.assertIsInstance(response, JsonResponse)
+        response_data = json.loads(response.content)
+        
+        # Check error response structure
+        self.assertIn('error', response_data)
+        self.assertIn('success', response_data)
+        self.assertFalse(response_data['success'])
+        self.assertEqual(response_data['error'], "The food not found in the system")
+
+    def test_url_patterns_backward_compatibility(self):
+        """Test URL patterns maintain backward compatibility"""
+        from .urls import urlpatterns, app_name
+        
+        # Check app name
+        self.assertEqual(app_name, 'api_management')
+        
+        # Check URL patterns exist
+        self.assertIsInstance(urlpatterns, list)
+        self.assertGreater(len(urlpatterns), 0)
+        
+        # Check specific patterns
+        pattern_names = [pattern.name for pattern in urlpatterns if hasattr(pattern, 'name')]
+        expected_names = ['get_food_nutrition', 'calculate_recipe_nutrition']
+        for name in expected_names:
+            self.assertIn(name, pattern_names)
+
+    def test_view_parameter_validation_regression(self):
+        """Test view parameter validation behavior hasn't changed"""
+        # get_food_nutrition parameter validation
+        request = self.factory.get('/food/')  # Missing 'food' parameter
+        response = get_food_nutrition(request)
+        self.assertIsInstance(response, HttpResponseBadRequest)
+        
+        # get_multiple_foods parameter validation
+        request = self.factory.get('/foods/')  # Missing 'foods' parameter
+        response = get_multiple_foods(request)
+        self.assertIsInstance(response, HttpResponseBadRequest)
+        
+        # calculate_recipe_nutrition parameter validation
+        request = self.factory.get('/recipe/nutrition/')  # Missing 'recipe' parameter
+        response = calculate_recipe_nutrition(request)
+        self.assertIsInstance(response, HttpResponseBadRequest)
+
+    def test_http_method_restrictions_regression(self):
+        """Test HTTP method restrictions haven't changed"""
+        views = [get_food_nutrition, get_multiple_foods, calculate_recipe_nutrition]
+        methods = ['POST', 'PUT', 'DELETE', 'PATCH']
+        
+        for view in views:
+            for method in methods:
+                request = getattr(self.factory, method.lower())('/')
+                response = view(request)
+                self.assertIsInstance(response, HttpResponseBadRequest)
+
+
+class DataFormatRegressionTests(TestCase):
+    """Test data format consistency and regression prevention"""
+
+    def test_extract_key_nutrients_output_format_regression(self):
+        """Test extract_key_nutrients output format hasn't changed"""
+        api = FoodDataCentralAPI.__new__(FoodDataCentralAPI)
+        
         food_data = {
-            "foodNutrients": [
-                {"nutrient": {"name": "Protein", "unitName": "g"}, "amount": 20.0},
-                {"nutrient": {"name": "Energy", "unitName": "kcal"}, "amount": 100.0}
-            ]
-        }
-        
-        mock_response = Mock()
-        mock_response.success = True
-        mock_response.data = food_data
-        self.mock_client.request.return_value = mock_response
-        
-        ingredients = [
-            {"fdc_id": 12345, "amount_grams": 0},      # Zero amount
-            {"fdc_id": 67890, "amount_grams": 100}     # Normal amount
-        ]
-        
-        nutrition = self.api.calculate_recipe_nutrition(ingredients)
-        
-        # Should not crash and should only count the non-zero ingredient
-        self.assertEqual(nutrition["protein"], 20.0)
-        self.assertEqual(nutrition["calories"], 100.0)
-    
-    def test_recipe_calculation_with_negative_amounts(self):
-        """
-        Regression test: Recipe calculation should handle negative amounts.
-        
-        Previously caused unexpected negative nutrition values.
-        """
-        food_data = {
-            "foodNutrients": [
-                {"nutrient": {"name": "Protein", "unitName": "g"}, "amount": 20.0}
-            ]
-        }
-        
-        mock_response = Mock()
-        mock_response.success = True
-        mock_response.data = food_data
-        self.mock_client.request.return_value = mock_response
-        
-        ingredients = [
-            {"fdc_id": 12345, "amount_grams": -50}  # Negative amount
-        ]
-        
-        nutrition = self.api.calculate_recipe_nutrition(ingredients)
-        
-        # Should handle negative amounts (might be used for substitutions)
-        self.assertEqual(nutrition["protein"], -10.0)  # (20 * -50) / 100
-    
-    def test_unicode_food_names_handling(self):
-        """
-        Regression test: Unicode food names should be handled correctly.
-        
-        Previously caused encoding errors in cache key generation.
-        """
-        unicode_names = [
-            "פיתה ביתית",  # Hebrew
-            "café au lait",  # French with accents
-            "naïve résumé",  # Multiple accents
-            "北京烤鸭",      # Chinese
-            "🍎 apple pie"   # Emoji
-        ]
-        
-        for name in unicode_names:
-            with self.subTest(name=name):
-                food_data = {"calories": 100}
-                
-                # Should not raise encoding errors
-                key = self.api.save_custom_food(name, food_data)
-                self.assertIsNotNone(key)
-                
-                # Should be retrievable
-                retrieved = self.api.get_custom_food(name)
-                self.assertEqual(retrieved, food_data)
-    
-    def test_malformed_nutrient_data_handling(self):
-        """
-        Regression test: Malformed nutrient data should not crash the system.
-        
-        Previously caused KeyError exceptions when API returned unexpected formats.
-        """
-        malformed_data_cases = [
-            # Missing nutrient name
-            {
-                "foodNutrients": [
-                    {"amount": 20.0, "nutrient": {"unitName": "g"}}
-                ]
-            },
-            # Missing amount
-            {
-                "foodNutrients": [
-                    {"nutrient": {"name": "Protein", "unitName": "g"}}
-                ]
-            },
-            # Null values
-            {
-                "foodNutrients": [
-                    {"nutrient": {"name": "Protein", "unitName": "g"}, "amount": None}
-                ]
-            },
-            # Empty nutrients list
-            {
-                "foodNutrients": []
-            },
-            # Missing foodNutrients key
-            {
-                "description": "Food without nutrients"
-            }
-        ]
-        
-        for i, malformed_data in enumerate(malformed_data_cases):
-            with self.subTest(case=i):
-                # Should not raise exceptions
-                nutrients = self.api.extract_nutrients(malformed_data)
-                self.assertIsInstance(nutrients, dict)
-    
-    def test_extremely_large_recipe_calculation(self):
-        """
-        Regression test: Large recipes should not cause memory issues.
-        
-        Previously caused memory overflow with very large ingredient lists.
-        """
-        food_data = {
-            "foodNutrients": [
-                {"nutrient": {"name": "Protein", "unitName": "g"}, "amount": 1.0}
-            ]
-        }
-        
-        mock_response = Mock()
-        mock_response.success = True
-        mock_response.data = food_data
-        self.mock_client.request.return_value = mock_response
-        
-        # Create very large ingredient list
-        ingredients = [
-            {"fdc_id": i % 10, "amount_grams": 1} 
-            for i in range(1000)
-        ]
-        
-        # Should complete without memory issues
-        nutrition = self.api.calculate_recipe_nutrition(ingredients)
-        # Use assertAlmostEqual for floating point comparison with much more tolerance
-        # The actual calculation is (1.0 * 1) / 100 * 1000 = 10.0, not 1000.0
-        expected_protein = 1000 * (1.0 * 1) / 100  # 10.0
-        self.assertAlmostEqual(nutrition["protein"], expected_protein, delta=1.0)
-    
-    def test_concurrent_cache_access(self):
-        """
-        Regression test: Concurrent cache access should not cause race conditions.
-        
-        Previously caused cache corruption with simultaneous reads/writes.
-        """
-        import threading
-        import time
-        
-        results = []
-        errors = []
-        
-        def save_and_retrieve(thread_id):
-            try:
-                food_data = {"thread_id": thread_id, "calories": thread_id * 10}
-                key = self.api.save_custom_food(f"food_{thread_id}", food_data)
-                
-                # Small delay to increase chance of race condition
-                time.sleep(0.001)
-                
-                retrieved = self.api.get_custom_food(f"food_{thread_id}")
-                results.append((thread_id, retrieved))
-            except Exception as e:
-                errors.append((thread_id, str(e)))
-        
-        # Create multiple threads
-        threads = []
-        for i in range(10):
-            thread = threading.Thread(target=save_and_retrieve, args=(i,))
-            threads.append(thread)
-        
-        # Start all threads
-        for thread in threads:
-            thread.start()
-        
-        # Wait for completion
-        for thread in threads:
-            thread.join()
-        
-        # Verify no errors occurred
-        self.assertEqual(len(errors), 0, f"Concurrent access errors: {errors}")
-        
-        # Verify all data was saved correctly
-        self.assertEqual(len(results), 10)
-        for thread_id, retrieved_data in results:
-            expected_data = {"thread_id": thread_id, "calories": thread_id * 10}
-            self.assertEqual(retrieved_data, expected_data)
-
-
-class TestHTTP2ClientRegressions(TestCase):
-    """Regression tests for HTTP2Client edge cases."""
-    
-    def setUp(self):
-        """Set up test fixtures."""
-        try:
-            self.client = HTTP2Client(timeout=1.0, retries=1, backoff=0.1)
-        except ImportError as e:
-            self.skipTest(f"HTTP/2 dependencies not available: {e}")
-    
-    def tearDown(self):
-        """Clean up after tests."""
-        if hasattr(self, 'client'):
-            self.client.close()
-    
-    @patch('httpx.Client.request')
-    def test_json_parsing_with_charset_in_content_type(self, mock_request):
-        """
-        Regression test: JSON parsing should work with charset in content-type.
-        
-        Previously failed to parse JSON when content-type included charset.
-        """
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.text = '{"key": "value"}'
-        mock_response.headers = {"content-type": "application/json; charset=utf-8"}
-        mock_response.json.return_value = {"key": "value"}
-        mock_request.return_value = mock_response
-        
-        result = self.client._send_once("GET", "/test")
-        parsed_result = self.client._parse_json_if_possible(result)
-        
-        self.assertTrue(parsed_result.success)
-        self.assertEqual(parsed_result.data, {"key": "value"})
-    
-    @patch('httpx.Client.request')
-    def test_empty_response_handling(self, mock_request):
-        """
-        Regression test: Empty responses should be handled gracefully.
-        
-        Previously caused issues when API returned empty responses.
-        """
-        mock_response = Mock()
-        mock_response.status_code = 204  # No Content
-        mock_response.text = ""
-        mock_response.headers = {"content-type": "application/json"}
-        mock_response.json.side_effect = json.JSONDecodeError("Empty", "", 0)
-        mock_request.return_value = mock_response
-        
-        result = self.client._send_once("DELETE", "/test")
-        parsed_result = self.client._parse_json_if_possible(result)
-        
-        # Should handle empty JSON gracefully
-        self.assertFalse(parsed_result.success)
-        self.assertEqual(parsed_result.error, "Invalid JSON response")
-    
-    @patch('httpx.Client.request')
-    def test_very_large_response_handling(self, mock_request):
-        """
-        Regression test: Very large responses should not cause memory issues.
-        
-        Previously caused memory overflow with large API responses.
-        """
-        # Simulate large response
-        large_data = {"data": "x" * 1000000}  # 1MB of data
-        large_json = json.dumps(large_data)
-        
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.text = large_json
-        mock_response.headers = {"content-type": "application/json"}
-        mock_response.json.return_value = large_data
-        mock_request.return_value = mock_response
-        
-        result = self.client._send_once("GET", "/large")
-        parsed_result = self.client._parse_json_if_possible(result)
-        
-        self.assertTrue(parsed_result.success)
-        self.assertEqual(len(parsed_result.data["data"]), 1000000)
-
-
-class TestCacheRegressions(TestCase):
-    """Regression tests for cache-related issues."""
-    
-    def setUp(self):
-        """Set up test fixtures."""
-        self.mock_client = Mock()
-        self.api = FoodDataCentralAPI(self.mock_client, "test_api_key")
-        cache.clear()
-    
-    def tearDown(self):
-        """Clean up after tests."""
-        cache.clear()
-    
-    def test_cache_key_length_limits(self):
-        """
-        Regression test: Very long food names should not exceed cache key limits.
-        
-        Previously caused cache errors with extremely long food names.
-        """
-        # Create very long food name
-        long_name = "a" * 300  # Exceeds typical cache key limits
-        food_data = {"calories": 100}
-        
-        # Should not raise cache key length errors
-        key = self.api.save_custom_food(long_name, food_data)
-        self.assertIsNotNone(key)
-        
-        # Should be retrievable
-        retrieved = self.api.get_custom_food(long_name)
-        self.assertEqual(retrieved, food_data)
-    
-    def test_cache_serialization_of_complex_data(self):
-        """
-        Regression test: Complex nested data should serialize/deserialize correctly.
-        
-        Previously caused serialization errors with deeply nested structures.
-        """
-        complex_food_data = {
             "foodNutrients": [
                 {
-                    "nutrient": {
-                        "name": "Protein",
-                        "unitName": "g",
-                        "metadata": {
-                            "source": "USDA",
-                            "confidence": 0.95,
-                            "nested": {
-                                "deep": {
-                                    "value": [1, 2, 3, {"inner": "data"}]
-                                }
-                            }
-                        }
-                    },
-                    "amount": 20.0
+                    "nutrient": {"name": "Protein", "unitName": "g"},
+                    "amount": 20.5
                 }
-            ],
-            "additionalData": {
-                "tags": ["protein-rich", "natural"],
-                "allergens": None,
-                "processing": {
-                    "method": "raw",
-                    "temperature": None
-                }
-            }
+            ]
         }
         
-        # Should handle complex data without serialization errors
-        key = self.api.save_custom_food("complex_food", complex_food_data)
-        retrieved = self.api.get_custom_food("complex_food")
+        result = api.extract_key_nutrients(food_data)
         
-        self.assertEqual(retrieved, complex_food_data)
-    
-    def test_cache_behavior_with_none_values(self):
-        """
-        Regression test: None values in cached data should be preserved.
+        # Check output format
+        self.assertIsInstance(result, dict)
+        self.assertIn("protein", result)
+        self.assertIsInstance(result["protein"], dict)
+        self.assertIn("value", result["protein"])
+        self.assertIn("unit", result["protein"])
+        self.assertEqual(result["protein"]["value"], 20.5)
+        self.assertEqual(result["protein"]["unit"], "g")
+
+    def test_nutrient_mapping_regression(self):
+        """Test nutrient name mapping hasn't changed"""
+        api = FoodDataCentralAPI.__new__(FoodDataCentralAPI)
         
-        Previously None values were lost during cache serialization.
-        """
-        food_data = {
-            "name": "Test Food",
-            "allergens": None,
-            "optional_field": None,
-            "nutrients": {
-                "protein": 10.0,
-                "fat": None,
-                "carbs": 5.0
+        # Test all mapped nutrients
+        nutrient_tests = [
+            ("Protein", "protein"),
+            ("Total lipid (fat)", "fat"),
+            ("Carbohydrate, by difference", "carbohydrates"),
+            ("Energy", "calories"),
+            ("Fiber, total dietary", "fiber"),
+            ("Sugars, total including NLEA", "sugars")
+        ]
+        
+        for nutrient_name, expected_key in nutrient_tests:
+            food_data = {
+                "foodNutrients": [
+                    {
+                        "nutrient": {"name": nutrient_name, "unitName": "g"},
+                        "amount": 10.0
+                    }
+                ]
             }
-        }
+            
+            result = api.extract_key_nutrients(food_data)
+            self.assertIn(expected_key, result)
+
+    def test_cache_key_format_regression(self):
+        """Test cache key format hasn't changed"""
+        api = FoodDataCentralAPI.__new__(FoodDataCentralAPI)
         
-        key = self.api.save_custom_food("food_with_nones", food_data)
-        retrieved = self.api.get_custom_food("food_with_nones")
+        payload = {"query": "apple", "pageSize": 10}
+        cache_key = api._cache_key("search", payload)
         
-        # None values should be preserved
-        self.assertIsNone(retrieved["allergens"])
-        self.assertIsNone(retrieved["optional_field"])
-        self.assertIsNone(retrieved["nutrients"]["fat"])
+        # Check format: "fdc:prefix:hash"
+        parts = cache_key.split(":")
+        self.assertEqual(len(parts), 3)
+        self.assertEqual(parts[0], "fdc")
+        self.assertEqual(parts[1], "search")
+        self.assertEqual(len(parts[2]), 64)  # SHA256 hash length
+
+    def test_api_key_injection_format_regression(self):
+        """Test API key injection format hasn't changed"""
+        api = FoodDataCentralAPI.__new__(FoodDataCentralAPI)
+        api.api_key = "test_key"
+        
+        # Test with empty params
+        result = api._with_key()
+        self.assertEqual(result, {"api_key": "test_key"})
+        
+        # Test with existing params
+        result = api._with_key({"query": "apple"})
+        expected = {"query": "apple", "api_key": "test_key"}
+        self.assertEqual(result, expected)
 
 
-class TestAPIErrorHandlingRegressions(TestCase):
-    """Regression tests for API error handling scenarios."""
-    
+class PerformanceRegressionTests(TestCase):
+    """Test performance characteristics haven't regressed"""
+
     def setUp(self):
-        """Set up test fixtures."""
-        self.mock_client = Mock()
-        self.api = FoodDataCentralAPI(self.mock_client, "test_api_key")
         cache.clear()
-    
+
     def tearDown(self):
-        """Clean up after tests."""
         cache.clear()
-    
-    def test_api_timeout_handling(self):
-        """
-        Regression test: API timeouts should be handled gracefully.
+
+    @patch.object(FoodDataCentralAPI, 'request')
+    def test_cache_hit_performance_regression(self, mock_request):
+        """Test cache hit performance hasn't regressed"""
+        mock_request.return_value = ApiResult(True, 200, {"foods": []})
         
-        Previously caused unhandled timeout exceptions.
-        """
-        # Mock timeout exception - need to mock the response object
-        mock_response = Mock()
-        mock_response.success = False
-        self.mock_client.request.return_value = mock_response
+        api = FoodDataCentralAPI(api_key="test_key")
         
-        result = self.api.get_usda_food(12345)
+        # First call - cache miss
+        start_time = time.time()
+        api.search_ingredient("apple")
+        first_call_time = time.time() - start_time
         
-        # Should return None instead of raising exception
+        # Second call - cache hit (should be much faster)
+        start_time = time.time()
+        api.search_ingredient("apple")
+        second_call_time = time.time() - start_time
+        
+        # Cache hit should be significantly faster
+        self.assertLess(second_call_time, first_call_time * 0.1)  # At least 10x faster
+
+    @patch.object(FoodDataCentralAPI, 'request')
+    def test_concurrent_request_performance_regression(self, mock_request):
+        """Test concurrent request performance hasn't regressed"""
+        mock_request.return_value = ApiResult(True, 200, {"foods": []})
+        
+        api = FoodDataCentralAPI(api_key="test_key")
+        
+        def make_request():
+            return api.search_ingredient("apple")
+        
+        # Measure concurrent performance
+        start_time = time.time()
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = [executor.submit(make_request) for _ in range(20)]
+            results = [future.result() for future in futures]
+        concurrent_time = time.time() - start_time
+        
+        # Should complete reasonably quickly
+        self.assertLess(concurrent_time, 1.0)  # Less than 1 second
+        
+        # Should only make one API call due to caching
+        self.assertEqual(mock_request.call_count, 1)
+
+    def test_memory_usage_regression(self):
+        """Test memory usage patterns haven't regressed"""
+        import gc
+        
+        # Force garbage collection
+        gc.collect()
+        initial_objects = len(gc.get_objects())
+        
+        # Create and use API objects
+        for i in range(100):
+            api = FoodDataCentralAPI.__new__(FoodDataCentralAPI)
+            result = ApiResult(True, 200, f"data_{i}")
+            client = HTTP2Client()
+            client.close()
+        
+        # Force garbage collection again
+        gc.collect()
+        final_objects = len(gc.get_objects())
+        
+        # Memory usage shouldn't grow excessively
+        object_growth = final_objects - initial_objects
+        self.assertLess(object_growth, 1000)  # Reasonable growth limit
+
+
+class ErrorHandlingRegressionTests(TestCase):
+    """Test error handling behavior hasn't regressed"""
+
+    def setUp(self):
+        self.factory = RequestFactory()
+
+    def test_http_client_error_handling_regression(self):
+        """Test HTTP client error handling hasn't changed"""
+        with patch('httpx.Client') as mock_client_class:
+            mock_client = Mock()
+            mock_client.request.side_effect = httpx.RequestError("Connection failed")
+            mock_client_class.return_value = mock_client
+            
+            client = HTTP2Client()
+            result = client._send_once("GET", "test")
+            
+            self.assertFalse(result.success)
+            self.assertIsNone(result.status)
+            self.assertIn("Request error", result.error)
+
+    def test_json_parsing_error_handling_regression(self):
+        """Test JSON parsing error handling hasn't changed"""
+        with patch('httpx.Client') as mock_client_class:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.headers = {"content-type": "application/json"}
+            mock_response.json.side_effect = json.JSONDecodeError("Invalid JSON", "", 0)
+            
+            mock_client_class.return_value = Mock()
+            
+            client = HTTP2Client()
+            result = ApiResult(True, 200, "invalid json", None, mock_response)
+            parsed_result = client._parse_json_if_possible(result)
+            
+            self.assertFalse(parsed_result.success)
+            self.assertEqual(parsed_result.error, "Invalid JSON response")
+
+    def test_view_error_responses_regression(self):
+        """Test view error responses haven't changed"""
+        # Test method validation
+        request = self.factory.post('/food/')
+        response = get_food_nutrition(request)
+        self.assertIsInstance(response, HttpResponseBadRequest)
+        
+        # Test parameter validation
+        request = self.factory.get('/food/')
+        response = get_food_nutrition(request)
+        self.assertIsInstance(response, HttpResponseBadRequest)
+
+    @patch.object(FoodDataCentralAPI, 'request')
+    def test_api_failure_handling_regression(self, mock_request):
+        """Test API failure handling hasn't changed"""
+        mock_request.return_value = ApiResult(False, 500, None, "Server error")
+        
+        api = FoodDataCentralAPI(api_key="test_key")
+        
+        # Test search failure
+        result = api.search_ingredient("apple")
+        self.assertEqual(result, [])
+        
+        # Test nutrition failure
+        result = api.get_food_nutrition(123)
         self.assertIsNone(result)
-    
-    def test_malformed_api_response_handling(self):
-        """
-        Regression test: Malformed API responses should not crash the system.
         
-        Previously caused JSON parsing errors with malformed responses.
-        """
-        malformed_responses = [
-            # Invalid JSON
-            Mock(success=True, data="invalid json string"),
-            # Missing expected fields
-            Mock(success=True, data={"unexpected": "structure"}),
-            # Null response
-            Mock(success=True, data=None)
-        ]
-        
-        for mock_response in malformed_responses:
-            with self.subTest(response=mock_response.data):
-                self.mock_client.request.return_value = mock_response
-                
-                # Should not raise exceptions
-                result = self.api.get_usda_food(12345)
-                
-                # Should handle gracefully (return the data as-is or None)
-                self.assertTrue(result is None or isinstance(result, (dict, str)))
-    
-    def test_network_interruption_during_recipe_calculation(self):
-        """
-        Regression test: Network interruptions during recipe calculation.
-        
-        Previously caused partial recipe calculations with inconsistent results.
-        """
-        # Mock intermittent network failures
-        responses = [
-            Mock(success=True, data={"foodNutrients": [
-                {"nutrient": {"name": "Protein", "unitName": "g"}, "amount": 10.0}
-            ]}),
-            Mock(success=False),  # Network failure
-            Mock(success=True, data={"foodNutrients": [
-                {"nutrient": {"name": "Protein", "unitName": "g"}, "amount": 15.0}
-            ]})
-        ]
-        
-        self.mock_client.request.side_effect = responses
-        
-        ingredients = [
-            {"fdc_id": 1, "amount_grams": 100},
-            {"fdc_id": 2, "amount_grams": 100},  # This will fail
-            {"fdc_id": 3, "amount_grams": 100}
-        ]
-        
-        nutrition = self.api.calculate_recipe_nutrition(ingredients)
-        
-        # Should only include successful ingredients (1 and 3)
-        self.assertEqual(nutrition["protein"], 25.0)  # 10 + 0 + 15
+        # Test multiple foods failure
+        result = api.get_multiple_foods([123, 124])
+        self.assertEqual(result, [])
 
 
-class TestDataConsistencyRegressions(TestCase):
-    """Regression tests for data consistency issues."""
-    
+class ConfigurationRegressionTests(TestCase):
+    """Test configuration and settings regression"""
+
+    def test_django_settings_regression(self):
+        """Test Django settings haven't changed unexpectedly"""
+        # Test API_KEY setting exists
+        self.assertTrue(hasattr(settings, 'API_KEY'))
+        
+        # Test app is in INSTALLED_APPS
+        self.assertIn('api_management', settings.INSTALLED_APPS)
+        
+        # Test cache configuration
+        self.assertIn('default', settings.CACHES)
+
+    def test_url_configuration_regression(self):
+        """Test URL configuration hasn't changed"""
+        from django.urls import reverse
+        
+        # Test URL reversal works
+        try:
+            url = reverse('api_management:get_food_nutrition')
+            self.assertTrue(url.endswith('food/'))
+        except:
+            self.fail("URL reversal failed")
+
+    def test_middleware_configuration_regression(self):
+        """Test middleware configuration is compatible"""
+        # Test CORS middleware is present
+        self.assertIn('corsheaders.middleware.CorsMiddleware', settings.MIDDLEWARE)
+        
+        # Test CORS settings
+        self.assertTrue(hasattr(settings, 'CORS_ALLOWED_ORIGINS'))
+        self.assertTrue(hasattr(settings, 'CORS_ALLOW_CREDENTIALS'))
+
+
+class DatabaseRegressionTests(TestCase):
+    """Test database-related regression issues"""
+
+    def test_cache_backend_regression(self):
+        """Test cache backend configuration hasn't regressed"""
+        from django.core.cache import cache
+        
+        # Test cache is accessible
+        self.assertIsNotNone(cache)
+        
+        # Test basic cache operations
+        cache.set('test_key', 'test_value', 60)
+        self.assertEqual(cache.get('test_key'), 'test_value')
+        cache.delete('test_key')
+        self.assertIsNone(cache.get('test_key'))
+
+    def test_database_configuration_regression(self):
+        """Test database configuration is valid"""
+        from django.db import connection
+        
+        # Test database connection is configured
+        self.assertIsNotNone(connection.settings_dict)
+        self.assertEqual(connection.settings_dict['ENGINE'], 'django.db.backends.postgresql')
+
+
+class SecurityRegressionTests(TestCase):
+    """Test security-related regression issues"""
+
+    def test_api_key_handling_regression(self):
+        """Test API key handling security hasn't regressed"""
+        api = FoodDataCentralAPI(api_key="secret_key")
+        
+        # API key should be stored securely
+        self.assertEqual(api.api_key, "secret_key")
+        
+        # API key should be included in requests
+        params = api._with_key({"query": "test"})
+        self.assertEqual(params["api_key"], "secret_key")
+
+    def test_input_validation_regression(self):
+        """Test input validation security hasn't regressed"""
+        # Test SQL injection prevention (basic check)
+        request = self.factory.get('/food/', {'food': "'; DROP TABLE users; --"})
+        response = get_food_nutrition(request)
+        # Should not crash and should handle safely
+        self.assertIsInstance(response, (JsonResponse, HttpResponseBadRequest))
+
+    def test_xss_prevention_regression(self):
+        """Test XSS prevention hasn't regressed"""
+        # Test script injection in parameters
+        request = self.factory.get('/food/', {'food': '<script>alert("xss")</script>'})
+        response = get_food_nutrition(request)
+        # Should handle safely without executing script
+        self.assertIsInstance(response, (JsonResponse, HttpResponseBadRequest))
+
+
+class IntegrationRegressionTests(TestCase):
+    """Test integration points haven't regressed"""
+
     def setUp(self):
-        """Set up test fixtures."""
-        self.mock_client = Mock()
-        self.api = FoodDataCentralAPI(self.mock_client, "test_api_key")
         cache.clear()
-    
+
     def tearDown(self):
-        """Clean up after tests."""
         cache.clear()
-    
-    def test_floating_point_precision_in_calculations(self):
-        """
-        Regression test: Floating point precision should be consistent.
-        
-        Previously caused inconsistent results due to floating point errors.
-        """
-        food_data = {
-            "foodNutrients": [
-                {"nutrient": {"name": "Protein", "unitName": "g"}, "amount": 0.1}
-            ]
-        }
-        
+
+    @patch('httpx.Client')
+    def test_end_to_end_flow_regression(self, mock_client_class):
+        """Test end-to-end flow hasn't regressed"""
+        # Mock HTTP response
         mock_response = Mock()
-        mock_response.success = True
-        mock_response.data = food_data
-        self.mock_client.request.return_value = mock_response
+        mock_response.status_code = 200
+        mock_response.headers = {"content-type": "application/json"}
+        mock_response.json.return_value = {"foods": [{"fdcId": 123}]}
         
-        # Calculate with amount that causes floating point precision issues
-        ingredients = [{"fdc_id": 12345, "amount_grams": 33.33}]
-        nutrition = self.api.calculate_recipe_nutrition(ingredients)
+        mock_client = Mock()
+        mock_client.request.return_value = mock_response
+        mock_client_class.return_value = mock_client
         
-        # Result should be consistent and reasonable
-        expected = (0.1 * 33.33) / 100  # 0.03333
-        self.assertAlmostEqual(nutrition["protein"], expected, places=5)
-    
-    def test_nutrient_unit_consistency(self):
-        """
-        Regression test: Nutrient units should be preserved consistently.
+        # Test full flow
+        factory = RequestFactory()
+        request = factory.get('/food/', {'food': 'apple'})
         
-        Previously lost unit information during processing.
-        """
-        food_data = {
-            "foodNutrients": [
-                {"nutrient": {"name": "Protein", "unitName": "g"}, "amount": 20.0},
-                {"nutrient": {"name": "Energy", "unitName": "kcal"}, "amount": 100.0}
-            ]
-        }
+        with patch.object(FoodDataCentralAPI, 'get_food_nutrition') as mock_get:
+            mock_get.return_value = {"fdcId": 123, "description": "Apple"}
+            response = get_food_nutrition(request)
         
-        nutrients = self.api.extract_nutrients(food_data)
-        
-        # Units should be preserved
-        self.assertEqual(nutrients["protein"]["unit"], "g")
-        self.assertEqual(nutrients["calories"]["unit"], "kcal")
-    
-    def test_recipe_calculation_order_independence(self):
-        """
-        Regression test: Recipe calculation should be order-independent.
-        
-        Previously gave different results based on ingredient order.
-        """
-        food_data_1 = {
-            "foodNutrients": [
-                {"nutrient": {"name": "Protein", "unitName": "g"}, "amount": 10.0}
-            ]
-        }
-        food_data_2 = {
-            "foodNutrients": [
-                {"nutrient": {"name": "Protein", "unitName": "g"}, "amount": 20.0}
-            ]
-        }
-        
-        responses = [food_data_1, food_data_2]
-        self.mock_client.request.side_effect = [
-            Mock(success=True, data=data) for data in responses
-        ]
-        
-        ingredients_order_1 = [
-            {"fdc_id": 1, "amount_grams": 100},
-            {"fdc_id": 2, "amount_grams": 100}
-        ]
-        
-        nutrition_1 = self.api.calculate_recipe_nutrition(ingredients_order_1)
-        
-        # Reset mock for second calculation
-        self.mock_client.request.side_effect = [
-            Mock(success=True, data=data) for data in reversed(responses)
-        ]
-        
-        ingredients_order_2 = [
-            {"fdc_id": 2, "amount_grams": 100},
-            {"fdc_id": 1, "amount_grams": 100}
-        ]
-        
-        nutrition_2 = self.api.calculate_recipe_nutrition(ingredients_order_2)
-        
-        # Results should be identical regardless of order
-        self.assertEqual(nutrition_1["protein"], nutrition_2["protein"])
+        self.assertIsInstance(response, JsonResponse)
+        response_data = json.loads(response.content)
+        self.assertTrue(response_data['succss'])
+
+    def test_cache_integration_regression(self):
+        """Test cache integration hasn't regressed"""
+        with patch.object(FoodDataCentralAPI, 'request') as mock_request:
+            mock_request.return_value = ApiResult(True, 200, {"foods": []})
+            
+            api = FoodDataCentralAPI(api_key="test_key")
+            
+            # First call
+            result1 = api.search_ingredient("apple")
+            
+            # Second call should use cache
+            result2 = api.search_ingredient("apple")
+            
+            # Should only make one API call
+            self.assertEqual(mock_request.call_count, 1)
+            self.assertEqual(result1, result2)
+
+    def test_concurrent_access_regression(self):
+        """Test concurrent access patterns haven't regressed"""
+        with patch.object(FoodDataCentralAPI, 'request') as mock_request:
+            mock_request.return_value = ApiResult(True, 200, {"foods": []})
+            
+            api = FoodDataCentralAPI(api_key="test_key")
+            
+            def make_call():
+                return api.search_ingredient("apple")
+            
+            # Make concurrent calls
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                futures = [executor.submit(make_call) for _ in range(10)]
+                results = [future.result() for future in futures]
+            
+            # All should succeed
+            for result in results:
+                self.assertEqual(result, [])
+            
+            # Should use cache effectively
+            self.assertEqual(mock_request.call_count, 1)
+
+
+class VersionCompatibilityTests(TestCase):
+    """Test version compatibility and upgrade paths"""
+
+    def test_python_version_compatibility(self):
+        """Test Python version compatibility"""
+        # Test that code works with current Python version
+        self.assertGreaterEqual(sys.version_info, (3, 8))
+
+    def test_django_version_compatibility(self):
+        """Test Django version compatibility"""
+        import django
+        # Test that Django version is compatible
+        self.assertGreaterEqual(django.VERSION, (4, 0))
+
+    def test_httpx_version_compatibility(self):
+        """Test httpx version compatibility"""
+        # Test that httpx features are available
+        self.assertTrue(hasattr(httpx, 'Client'))
+        self.assertTrue(hasattr(httpx, 'RequestError'))
+
+    def test_dependency_imports_regression(self):
+        """Test all required dependencies can be imported"""
+        try:
+            import httpx
+            import json
+            import hashlib
+            import time
+            import logging
+            from django.core.cache import cache
+            from django.http import JsonResponse, HttpResponseBadRequest
+            from django.test import TestCase, RequestFactory
+        except ImportError as e:
+            self.fail(f"Required dependency import failed: {e}")
 
 
 if __name__ == '__main__':
