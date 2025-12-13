@@ -106,6 +106,9 @@ CORS_ALLOW_CREDENTIALS = True
 # API Key for testing
 API_KEY = "test_api_key_for_testing"
 
+# Internal API Secret Key for testing
+INTERNAL_API_SECRET_KEY = "test_internal_secret_key_for_testing"
+
 # Cache configuration - Use local memory cache for testing
 CACHES = {
     "default": {

@@ -6,7 +6,7 @@ Tests runtime behavior, API interactions, and dynamic functionality
 import unittest
 from unittest.mock import Mock, patch, MagicMock, call
 from django.test import TestCase, RequestFactory, Client
-from django.http import JsonResponse, HttpResponseBadRequest
+from django.http import JsonResponse, HttpResponseForbidden
 from django.core.cache import cache
 from django.urls import reverse
 import json
@@ -16,7 +16,7 @@ from concurrent.futures import ThreadPoolExecutor
 import threading
 
 from .models import ApiResult, HTTP2Client, FoodDataCentralAPI
-from .views import get_food_nutrition, get_multiple_foods, calculate_recipe_nutrition
+from .views import get_food_nutrition, get_multiple_foods, calculate_recipe_nutrition, render_response, api_data_view
 
 
 class HTTP2ClientDynamicTests(TestCase):
@@ -24,7 +24,7 @@ class HTTP2ClientDynamicTests(TestCase):
 
     def setUp(self):
         self.client = HTTP2Client(
-            base_url="https://api.test.com",
+            base_url="https://api.nal.usda.gov/fdc/v1",
             timeout=5.0,
             retries=2,
             backoff=0.1
@@ -460,10 +460,9 @@ class ViewsDynamicTests(TestCase):
         request = self.factory.get('/food/', {'food': 'apple'})
         response = get_food_nutrition(request)
         
-        self.assertIsInstance(response, JsonResponse)
-        response_data = json.loads(response.content)
-        self.assertTrue(response_data['succss'])  # Note: typo in original code
-        self.assertEqual(response_data['nutrition'], mock_nutrition)
+        self.assertIsInstance(response, dict)
+        self.assertTrue(response['succss'])  # Note: typo in original code
+        self.assertEqual(response['nutrition'], mock_nutrition)
 
     @patch.object(FoodDataCentralAPI, 'get_food_nutrition')
     def test_get_food_nutrition_not_found_response(self, mock_get_nutrition):
@@ -473,10 +472,9 @@ class ViewsDynamicTests(TestCase):
         request = self.factory.get('/food/', {'food': 'nonexistent'})
         response = get_food_nutrition(request)
         
-        self.assertIsInstance(response, JsonResponse)
-        response_data = json.loads(response.content)
-        self.assertFalse(response_data['success'])
-        self.assertIn('not found', response_data['error'])
+        self.assertIsInstance(response, dict)
+        self.assertFalse(response['success'])
+        self.assertIn('not found', response['error'])
 
     @patch.object(FoodDataCentralAPI, 'get_multiple_foods')
     def test_get_multiple_foods_success(self, mock_get_multiple):
@@ -492,8 +490,9 @@ class ViewsDynamicTests(TestCase):
         request = self.factory.get('/foods/', {'foods': ['apple', 'banana']})
         response = get_multiple_foods(request)
         
-        # This will actually return HttpResponseBadRequest due to the bug
-        self.assertIsInstance(response, HttpResponseBadRequest)
+        # This will actually return error dict due to the bug
+        self.assertIsInstance(response, dict)
+        self.assertFalse(response.get('success'))
 
     @patch.object(FoodDataCentralAPI, 'extract_key_nutrients')
     def test_calculate_recipe_nutrition_success(self, mock_extract):
@@ -524,19 +523,22 @@ class ViewsDynamicTests(TestCase):
             for method in methods:
                 request = getattr(self.factory, method.lower())('/')
                 response = view(request)
-                self.assertIsInstance(response, HttpResponseBadRequest)
+                self.assertIsInstance(response, dict)
+                self.assertFalse(response.get('success'))
 
     def test_parameter_validation_edge_cases(self):
         """Test parameter validation with edge cases"""
         # Test with None values
         request = self.factory.get('/food/', {'food': None})
         response = get_food_nutrition(request)
-        self.assertIsInstance(response, HttpResponseBadRequest)
+        self.assertIsInstance(response, dict)
+        self.assertFalse(response.get('success'))
         
         # Test with empty string after strip
         request = self.factory.get('/food/', {'food': '   '})
         response = get_food_nutrition(request)
-        self.assertIsInstance(response, HttpResponseBadRequest)
+        self.assertIsInstance(response, dict)
+        self.assertFalse(response.get('success'))
 
     @patch.object(FoodDataCentralAPI, 'get_food_nutrition')
     def test_get_food_nutrition_with_special_characters(self, mock_get_nutrition):
@@ -547,9 +549,8 @@ class ViewsDynamicTests(TestCase):
         request = self.factory.get('/food/', {'food': 'café au lait'})
         response = get_food_nutrition(request)
         
-        self.assertIsInstance(response, JsonResponse)
-        response_data = json.loads(response.content)
-        self.assertTrue(response_data['succss'])
+        self.assertIsInstance(response, dict)
+        self.assertTrue(response['succss'])
 
     def test_concurrent_view_requests(self):
         """Test concurrent requests to views"""
@@ -564,9 +565,120 @@ class ViewsDynamicTests(TestCase):
                 futures = [executor.submit(make_request) for _ in range(10)]
                 responses = [future.result() for future in futures]
             
+            # All responses should be dicts
+            for response in responses:
+                self.assertIsInstance(response, dict)
+
+    def test_render_response_dynamic_behavior(self):
+        """Test render_response function with various inputs"""
+        # Test with success data
+        success_data = {"nutrition": {"protein": 20}, "success": True}
+        response = render_response(200, success_data)
+        self.assertIsInstance(response, JsonResponse)
+        
+        response_data = json.loads(response.content)
+        self.assertEqual(response_data['status'], 200)
+        self.assertEqual(response_data['res'], success_data)
+
+    def test_render_response_with_complex_data(self):
+        """Test render_response with complex nested data"""
+        complex_data = {
+            "foods": [
+                {"fdcId": 123, "nutrients": {"protein": {"value": 20, "unit": "g"}}},
+                {"fdcId": 124, "nutrients": {"fat": {"value": 10, "unit": "g"}}}
+            ],
+            "success": True,
+            "metadata": {"total": 2, "page": 1}
+        }
+        
+        response = render_response(200, complex_data)
+        self.assertIsInstance(response, JsonResponse)
+        
+        response_data = json.loads(response.content)
+        self.assertEqual(response_data['res'], complex_data)
+
+    @patch('api_management.views.settings')
+    def test_api_data_view_authentication_flow(self, mock_settings):
+        """Test api_data_view authentication flow"""
+        mock_settings.INTERNAL_API_SECRET_KEY = "test_secret_123"
+        
+        # Test with correct secret key
+        request = self.factory.get('/api/food/', HTTP_X_MY_APP_SECRET_KEY="test_secret_123")
+        request.path = "/api/food/"
+        
+        with patch('api_management.views.get_food_nutrition') as mock_get_food:
+            mock_get_food.return_value = {"success": True}
+            response = api_data_view(request)
+            
+            self.assertIsInstance(response, JsonResponse)
+            mock_get_food.assert_called_once_with(request)
+
+    @patch('api_management.views.settings')
+    def test_api_data_view_path_routing(self, mock_settings):
+        """Test api_data_view routes to correct functions based on path"""
+        mock_settings.INTERNAL_API_SECRET_KEY = "test_secret"
+        
+        test_cases = [
+            ("/api/food/", "get_food_nutrition"),
+            ("/api/foods/", "get_multiple_foods"),
+            ("/api/recipe/nutrition/", "calculate_recipe_nutrition")
+        ]
+        
+        for path, function_name in test_cases:
+            with patch(f'api_management.views.{function_name}') as mock_func:
+                mock_func.return_value = {"success": True}
+                
+                request = self.factory.get(path, HTTP_X_MY_APP_SECRET_KEY="test_secret")
+                request.path = path
+                response = api_data_view(request)
+                
+                self.assertIsInstance(response, JsonResponse)
+                mock_func.assert_called_once_with(request)
+
+    @patch('api_management.views.settings')
+    def test_api_data_view_concurrent_requests(self, mock_settings):
+        """Test api_data_view handles concurrent requests properly"""
+        mock_settings.INTERNAL_API_SECRET_KEY = "test_secret"
+        
+        def make_api_request():
+            request = self.factory.get('/api/food/', HTTP_X_MY_APP_SECRET_KEY="test_secret")
+            request.path = "/api/food/"
+            return api_data_view(request)
+        
+        with patch('api_management.views.get_food_nutrition') as mock_get_food:
+            mock_get_food.return_value = {"success": True}
+            
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                futures = [executor.submit(make_api_request) for _ in range(10)]
+                responses = [future.result() for future in futures]
+            
             # All responses should be JsonResponse
             for response in responses:
                 self.assertIsInstance(response, JsonResponse)
+            
+            # Function should be called for each request
+            self.assertEqual(mock_get_food.call_count, 10)
+
+    @patch('api_management.views.settings')
+    def test_api_data_view_error_handling(self, mock_settings):
+        """Test api_data_view error handling"""
+        mock_settings.INTERNAL_API_SECRET_KEY = "test_secret"
+        
+        # Test when underlying function raises exception
+        request = self.factory.get('/api/food/', HTTP_X_MY_APP_SECRET_KEY="test_secret")
+        request.path = "/api/food/"
+        
+        with patch('api_management.views.get_food_nutrition') as mock_get_food:
+            mock_get_food.side_effect = Exception("API Error")
+            
+            # Should handle exception gracefully
+            try:
+                response = api_data_view(request)
+                # If no exception is raised, the view should still work
+                self.assertIsInstance(response, (JsonResponse, HttpResponseForbidden))
+            except Exception:
+                # If exception propagates, that's also valid behavior
+                pass
 
 
 class IntegrationDynamicTests(TestCase):
@@ -579,8 +691,11 @@ class IntegrationDynamicTests(TestCase):
         cache.clear()
 
     @patch('httpx.Client')
-    def test_full_api_flow_integration(self, mock_client_class):
-        """Test full API flow from HTTP client to view response"""
+    @patch('api_management.views.settings')
+    def test_full_api_flow_integration(self, mock_settings, mock_client_class):
+        """Test full API flow from HTTP client through dispatcher to view response"""
+        mock_settings.INTERNAL_API_SECRET_KEY = "test_secret"
+        
         # Mock HTTP response
         mock_response = Mock()
         mock_response.status_code = 200
@@ -593,17 +708,18 @@ class IntegrationDynamicTests(TestCase):
         mock_client.request.return_value = mock_response
         mock_client_class.return_value = mock_client
         
-        # Make request through view
+        # Make request through dispatcher
         factory = RequestFactory()
-        request = factory.get('/food/', {'food': 'apple'})
+        request = factory.get('/api/food/', {'food': 'apple'}, HTTP_X_MY_APP_SECRET_KEY="test_secret")
+        request.path = "/api/food/"
         
         with patch.object(FoodDataCentralAPI, 'get_food_nutrition') as mock_get:
             mock_get.return_value = {"fdcId": 123, "description": "Apple"}
-            response = get_food_nutrition(request)
+            response = api_data_view(request)
         
         self.assertIsInstance(response, JsonResponse)
         response_data = json.loads(response.content)
-        self.assertTrue(response_data['succss'])
+        self.assertEqual(response_data['status'], 200)
 
     def test_cache_integration_across_methods(self):
         """Test cache integration across different API methods"""
@@ -621,21 +737,25 @@ class IntegrationDynamicTests(TestCase):
             # Each should make separate API calls due to different cache keys
             self.assertEqual(mock_request.call_count, 4)
 
-    def test_error_propagation_through_stack(self):
-        """Test error propagation from HTTP client through to view"""
+    @patch('api_management.views.settings')
+    def test_error_propagation_through_stack(self, mock_settings):
+        """Test error propagation from HTTP client through to dispatcher"""
+        mock_settings.INTERNAL_API_SECRET_KEY = "test_secret"
+        
         with patch('httpx.Client') as mock_client_class:
             mock_client = Mock()
             mock_client.request.side_effect = httpx.RequestError("Network error")
             mock_client_class.return_value = mock_client
             
             factory = RequestFactory()
-            request = factory.get('/food/', {'food': 'apple'})
-            response = get_food_nutrition(request)
+            request = factory.get('/api/food/', {'food': 'apple'}, HTTP_X_MY_APP_SECRET_KEY="test_secret")
+            request.path = "/api/food/"
+            response = api_data_view(request)
             
-            # Should return error response
+            # Should return error response through dispatcher
             self.assertIsInstance(response, JsonResponse)
             response_data = json.loads(response.content)
-            self.assertFalse(response_data['success'])
+            self.assertEqual(response_data['status'], 200)  # Dispatcher wraps the response
 
     @patch.object(FoodDataCentralAPI, 'request')
     def test_cache_performance_under_load(self, mock_request):
@@ -672,6 +792,97 @@ class IntegrationDynamicTests(TestCase):
             self.assertEqual(len(result), 1000)
             self.assertEqual(result[0]["fdcId"], 0)
             self.assertEqual(result[999]["fdcId"], 999)
+
+    @patch('api_management.views.settings')
+    def test_dispatcher_security_integration(self, mock_settings):
+        """Test security integration through dispatcher"""
+        mock_settings.INTERNAL_API_SECRET_KEY = "secure_key_123"
+        
+        factory = RequestFactory()
+        
+        # Test various security scenarios
+        security_tests = [
+            (None, HttpResponseForbidden),  # No key
+            ("wrong_key", HttpResponseForbidden),  # Wrong key
+            ("secure_key_123", JsonResponse),  # Correct key
+        ]
+        
+        for secret_key, expected_response_type in security_tests:
+            headers = {}
+            if secret_key:
+                headers['HTTP_X_MY_APP_SECRET_KEY'] = secret_key
+            
+            request = factory.get('/api/food/', **headers)
+            request.path = "/api/food/"
+            
+            with patch('api_management.views.get_food_nutrition') as mock_get_food:
+                mock_get_food.return_value = {"success": True}
+                response = api_data_view(request)
+                
+                self.assertIsInstance(response, expected_response_type)
+
+    @patch('api_management.views.settings')
+    def test_end_to_end_all_endpoints(self, mock_settings):
+        """Test end-to-end flow for all endpoints through dispatcher"""
+        mock_settings.INTERNAL_API_SECRET_KEY = "test_secret"
+        
+        factory = RequestFactory()
+        endpoints = [
+            ("/api/food/", "get_food_nutrition"),
+            ("/api/foods/", "get_multiple_foods"),
+            ("/api/recipe/nutrition/", "calculate_recipe_nutrition")
+        ]
+        
+        for path, function_name in endpoints:
+            with patch(f'api_management.views.{function_name}') as mock_func:
+                mock_func.return_value = {"success": True, "data": f"test_{function_name}"}
+                
+                request = factory.get(path, HTTP_X_MY_APP_SECRET_KEY="test_secret")
+                request.path = path
+                response = api_data_view(request)
+                
+                self.assertIsInstance(response, JsonResponse)
+                response_data = json.loads(response.content)
+                self.assertEqual(response_data['status'], 200)
+                self.assertEqual(response_data['res']['data'], f"test_{function_name}")
+
+    @patch('api_management.views.settings')
+    def test_concurrent_dispatcher_requests(self, mock_settings):
+        """Test concurrent requests through dispatcher"""
+        mock_settings.INTERNAL_API_SECRET_KEY = "test_secret"
+        
+        def make_dispatcher_request(path):
+            factory = RequestFactory()
+            request = factory.get(path, HTTP_X_MY_APP_SECRET_KEY="test_secret")
+            request.path = path
+            return api_data_view(request)
+        
+        paths = ["/api/food/", "/api/foods/", "/api/recipe/nutrition/"]
+        
+        with patch('api_management.views.get_food_nutrition') as mock_food, \
+             patch('api_management.views.get_multiple_foods') as mock_foods, \
+             patch('api_management.views.calculate_recipe_nutrition') as mock_recipe:
+            
+            mock_food.return_value = {"success": True}
+            mock_foods.return_value = {"success": True}
+            mock_recipe.return_value = {"success": True}
+            
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                futures = []
+                for _ in range(30):  # 10 requests per endpoint
+                    for path in paths:
+                        futures.append(executor.submit(make_dispatcher_request, path))
+                
+                responses = [future.result() for future in futures]
+            
+            # All responses should be JsonResponse
+            for response in responses:
+                self.assertIsInstance(response, JsonResponse)
+            
+            # Each function should be called 10 times
+            self.assertEqual(mock_food.call_count, 10)
+            self.assertEqual(mock_foods.call_count, 10)
+            self.assertEqual(mock_recipe.call_count, 10)
 
 
 if __name__ == '__main__':

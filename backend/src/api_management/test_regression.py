@@ -6,7 +6,7 @@ Tests for preventing regressions and ensuring backward compatibility
 import unittest
 from unittest.mock import Mock, patch, MagicMock
 from django.test import TestCase, RequestFactory, Client, override_settings
-from django.http import JsonResponse, HttpResponseBadRequest
+from django.http import JsonResponse, HttpResponseForbidden
 from django.core.cache import cache
 from django.urls import reverse, resolve
 from django.conf import settings
@@ -19,7 +19,7 @@ import sys
 import os
 
 from .models import ApiResult, HTTP2Client, FoodDataCentralAPI
-from .views import get_food_nutrition, get_multiple_foods, calculate_recipe_nutrition
+from .views import get_food_nutrition, get_multiple_foods, calculate_recipe_nutrition, render_response, api_data_view
 
 
 class BackwardCompatibilityTests(TestCase):
@@ -66,8 +66,8 @@ class BackwardCompatibilityTests(TestCase):
         self.assertEqual(client1.backoff, 0.5)
         
         # Full constructor
-        client2 = HTTP2Client("https://api.test.com", 10.0, 5, 1.0)
-        self.assertEqual(client2.base_url, "https://api.test.com")
+        client2 = HTTP2Client("https://api.nal.usda.gov/fdc/v1", 10.0, 5, 1.0)
+        self.assertEqual(client2.base_url, "https://api.nal.usda.gov/fdc/v1")
         self.assertEqual(client2.timeout, 10.0)
         self.assertEqual(client2.retries, 5)
         self.assertEqual(client2.backoff, 1.0)
@@ -87,14 +87,13 @@ class BackwardCompatibilityTests(TestCase):
         request = self.factory.get('/food/', {'food': 'apple'})
         response = get_food_nutrition(request)
         
-        self.assertIsInstance(response, JsonResponse)
-        response_data = json.loads(response.content)
+        self.assertIsInstance(response, dict)
         
         # Check response structure
-        self.assertIn('nutrition', response_data)
-        self.assertIn('succss', response_data)  # Note: original typo preserved
-        self.assertTrue(response_data['succss'])
-        self.assertEqual(response_data['nutrition'], mock_nutrition)
+        self.assertIn('nutrition', response)
+        self.assertIn('succss', response)  # Note: original typo preserved
+        self.assertTrue(response['succss'])
+        self.assertEqual(response['nutrition'], mock_nutrition)
 
     @patch.object(FoodDataCentralAPI, 'get_food_nutrition')
     def test_get_food_nutrition_error_response_format_regression(self, mock_get_nutrition):
@@ -104,14 +103,13 @@ class BackwardCompatibilityTests(TestCase):
         request = self.factory.get('/food/', {'food': 'nonexistent'})
         response = get_food_nutrition(request)
         
-        self.assertIsInstance(response, JsonResponse)
-        response_data = json.loads(response.content)
+        self.assertIsInstance(response, dict)
         
         # Check error response structure
-        self.assertIn('error', response_data)
-        self.assertIn('success', response_data)
-        self.assertFalse(response_data['success'])
-        self.assertEqual(response_data['error'], "The food not found in the system")
+        self.assertIn('error', response)
+        self.assertIn('success', response)
+        self.assertFalse(response['success'])
+        self.assertEqual(response['error'], "The food not found in the system")
 
     def test_url_patterns_backward_compatibility(self):
         """Test URL patterns maintain backward compatibility"""
@@ -122,30 +120,31 @@ class BackwardCompatibilityTests(TestCase):
         
         # Check URL patterns exist
         self.assertIsInstance(urlpatterns, list)
-        self.assertGreater(len(urlpatterns), 0)
+        self.assertEqual(len(urlpatterns), 1)  # Now single dispatcher endpoint
         
-        # Check specific patterns
+        # Check dispatcher pattern
         pattern_names = [pattern.name for pattern in urlpatterns if hasattr(pattern, 'name')]
-        expected_names = ['get_food_nutrition', 'calculate_recipe_nutrition']
-        for name in expected_names:
-            self.assertIn(name, pattern_names)
+        self.assertIn('api_data_view', pattern_names)
 
     def test_view_parameter_validation_regression(self):
         """Test view parameter validation behavior hasn't changed"""
         # get_food_nutrition parameter validation
         request = self.factory.get('/food/')  # Missing 'food' parameter
         response = get_food_nutrition(request)
-        self.assertIsInstance(response, HttpResponseBadRequest)
+        self.assertIsInstance(response, dict)
+        self.assertFalse(response.get('success'))
         
         # get_multiple_foods parameter validation
         request = self.factory.get('/foods/')  # Missing 'foods' parameter
         response = get_multiple_foods(request)
-        self.assertIsInstance(response, HttpResponseBadRequest)
+        self.assertIsInstance(response, dict)
+        self.assertFalse(response.get('success'))
         
         # calculate_recipe_nutrition parameter validation
         request = self.factory.get('/recipe/nutrition/')  # Missing 'recipe' parameter
         response = calculate_recipe_nutrition(request)
-        self.assertIsInstance(response, HttpResponseBadRequest)
+        self.assertIsInstance(response, dict)
+        self.assertFalse(response.get('success'))
 
     def test_http_method_restrictions_regression(self):
         """Test HTTP method restrictions haven't changed"""
@@ -156,7 +155,40 @@ class BackwardCompatibilityTests(TestCase):
             for method in methods:
                 request = getattr(self.factory, method.lower())('/')
                 response = view(request)
-                self.assertIsInstance(response, HttpResponseBadRequest)
+                self.assertIsInstance(response, dict)
+                self.assertFalse(response.get('success'))
+
+    @patch('api_management.views.settings')
+    def test_dispatcher_response_format_regression(self, mock_settings):
+        """Test dispatcher response format consistency"""
+        mock_settings.INTERNAL_API_SECRET_KEY = "test_secret"
+        
+        request = self.factory.get('/api/food/', HTTP_X_MY_APP_SECRET_KEY="test_secret")
+        request.path = "/api/food/"
+        
+        with patch('api_management.views.get_food_nutrition') as mock_get_food:
+            mock_get_food.return_value = {"success": True, "data": "test"}
+            response = api_data_view(request)
+            
+            self.assertIsInstance(response, JsonResponse)
+            response_data = json.loads(response.content)
+            self.assertIn('status', response_data)
+            self.assertIn('res', response_data)
+            self.assertEqual(response_data['status'], 200)
+
+    def test_render_response_format_regression(self):
+        """Test render_response format hasn't changed"""
+        test_data = {"success": True, "data": "test"}
+        response = render_response(200, test_data)
+        
+        self.assertIsInstance(response, JsonResponse)
+        response_data = json.loads(response.content)
+        
+        # Check wrapper format
+        self.assertIn('status', response_data)
+        self.assertIn('res', response_data)
+        self.assertEqual(response_data['status'], 200)
+        self.assertEqual(response_data['res'], test_data)
 
 
 class DataFormatRegressionTests(TestCase):
@@ -360,12 +392,14 @@ class ErrorHandlingRegressionTests(TestCase):
         # Test method validation
         request = self.factory.post('/food/')
         response = get_food_nutrition(request)
-        self.assertIsInstance(response, HttpResponseBadRequest)
+        self.assertIsInstance(response, dict)
+        self.assertFalse(response.get('success'))
         
         # Test parameter validation
         request = self.factory.get('/food/')
         response = get_food_nutrition(request)
-        self.assertIsInstance(response, HttpResponseBadRequest)
+        self.assertIsInstance(response, dict)
+        self.assertFalse(response.get('success'))
 
     @patch.object(FoodDataCentralAPI, 'request')
     def test_api_failure_handling_regression(self, mock_request):
@@ -395,6 +429,9 @@ class ConfigurationRegressionTests(TestCase):
         # Test API_KEY setting exists
         self.assertTrue(hasattr(settings, 'API_KEY'))
         
+        # Test INTERNAL_API_SECRET_KEY setting exists
+        self.assertTrue(hasattr(settings, 'INTERNAL_API_SECRET_KEY'))
+        
         # Test app is in INSTALLED_APPS
         self.assertIn('api_management', settings.INSTALLED_APPS)
         
@@ -405,10 +442,10 @@ class ConfigurationRegressionTests(TestCase):
         """Test URL configuration hasn't changed"""
         from django.urls import reverse
         
-        # Test URL reversal works
+        # Test URL reversal works for dispatcher
         try:
-            url = reverse('api_management:get_food_nutrition')
-            self.assertTrue(url.endswith('food/'))
+            url = reverse('api_management:api_data_view')
+            self.assertTrue(url.endswith('/'))
         except:
             self.fail("URL reversal failed")
 
@@ -488,8 +525,11 @@ class IntegrationRegressionTests(TestCase):
         cache.clear()
 
     @patch('httpx.Client')
-    def test_end_to_end_flow_regression(self, mock_client_class):
+    @patch('api_management.views.settings')
+    def test_end_to_end_flow_regression(self, mock_settings, mock_client_class):
         """Test end-to-end flow hasn't regressed"""
+        mock_settings.INTERNAL_API_SECRET_KEY = "test_secret"
+        
         # Mock HTTP response
         mock_response = Mock()
         mock_response.status_code = 200
@@ -500,17 +540,18 @@ class IntegrationRegressionTests(TestCase):
         mock_client.request.return_value = mock_response
         mock_client_class.return_value = mock_client
         
-        # Test full flow
+        # Test full flow through dispatcher
         factory = RequestFactory()
-        request = factory.get('/food/', {'food': 'apple'})
+        request = factory.get('/api/food/', {'food': 'apple'}, HTTP_X_MY_APP_SECRET_KEY="test_secret")
+        request.path = "/api/food/"
         
         with patch.object(FoodDataCentralAPI, 'get_food_nutrition') as mock_get:
             mock_get.return_value = {"fdcId": 123, "description": "Apple"}
-            response = get_food_nutrition(request)
+            response = api_data_view(request)
         
         self.assertIsInstance(response, JsonResponse)
         response_data = json.loads(response.content)
-        self.assertTrue(response_data['succss'])
+        self.assertEqual(response_data['status'], 200)
 
     def test_cache_integration_regression(self):
         """Test cache integration hasn't regressed"""
@@ -581,10 +622,225 @@ class VersionCompatibilityTests(TestCase):
             import time
             import logging
             from django.core.cache import cache
-            from django.http import JsonResponse, HttpResponseBadRequest
+            from django.http import JsonResponse, HttpResponseForbidden
             from django.test import TestCase, RequestFactory
         except ImportError as e:
             self.fail(f"Required dependency import failed: {e}")
+
+
+class DispatcherRegressionTests(TestCase):
+    """Test dispatcher functionality regression"""
+
+    def setUp(self):
+        self.factory = RequestFactory()
+
+    @patch('api_management.views.settings')
+    def test_dispatcher_authentication_regression(self, mock_settings):
+        """Test dispatcher authentication hasn't regressed"""
+        mock_settings.INTERNAL_API_SECRET_KEY = "test_secret_key"
+        
+        # Test valid authentication
+        request = self.factory.get('/api/food/', HTTP_X_MY_APP_SECRET_KEY="test_secret_key")
+        request.path = "/api/food/"
+        
+        with patch('api_management.views.get_food_nutrition') as mock_get_food:
+            mock_get_food.return_value = {"success": True}
+            response = api_data_view(request)
+            self.assertIsInstance(response, JsonResponse)
+
+    @patch('api_management.views.settings')
+    def test_dispatcher_forbidden_response_regression(self, mock_settings):
+        """Test dispatcher forbidden response format hasn't changed"""
+        mock_settings.INTERNAL_API_SECRET_KEY = "correct_secret"
+        
+        request = self.factory.get('/api/food/', HTTP_X_MY_APP_SECRET_KEY="wrong_secret")
+        response = api_data_view(request)
+        
+        self.assertIsInstance(response, HttpResponseForbidden)
+        self.assertIn("Access denied", response.content.decode())
+
+    @patch('api_management.views.settings')
+    def test_dispatcher_path_routing_regression(self, mock_settings):
+        """Test dispatcher path routing hasn't changed"""
+        mock_settings.INTERNAL_API_SECRET_KEY = "test_secret"
+        
+        routing_tests = [
+            ("/api/food/", "get_food_nutrition"),
+            ("/api/foods/", "get_multiple_foods"),
+            ("/api/recipe/nutrition/", "calculate_recipe_nutrition")
+        ]
+        
+        for path, expected_function in routing_tests:
+            with patch(f'api_management.views.{expected_function}') as mock_func:
+                mock_func.return_value = {"success": True}
+                
+                request = self.factory.get(path, HTTP_X_MY_APP_SECRET_KEY="test_secret")
+                request.path = path
+                response = api_data_view(request)
+                
+                self.assertIsInstance(response, JsonResponse)
+                mock_func.assert_called_once()
+
+    @patch('api_management.views.settings')
+    def test_dispatcher_unknown_path_regression(self, mock_settings):
+        """Test dispatcher unknown path handling hasn't changed"""
+        mock_settings.INTERNAL_API_SECRET_KEY = "test_secret"
+        
+        request = self.factory.get('/api/unknown/', HTTP_X_MY_APP_SECRET_KEY="test_secret")
+        request.path = "/api/unknown/"
+        response = api_data_view(request)
+        
+        self.assertIsInstance(response, JsonResponse)
+        response_data = json.loads(response.content)
+        self.assertEqual(response_data['status'], 404)
+        self.assertFalse(response_data['res']['success'])
+
+
+class SecurityRegressionEnhancedTests(TestCase):
+    """Enhanced security regression tests for new architecture"""
+
+    def setUp(self):
+        self.factory = RequestFactory()
+
+    @patch('api_management.views.settings')
+    def test_secret_key_validation_regression(self, mock_settings):
+        """Test secret key validation security hasn't regressed"""
+        mock_settings.INTERNAL_API_SECRET_KEY = "secure_secret_123"
+        
+        # Test various invalid keys
+        invalid_keys = [
+            None,
+            "",
+            "wrong_key",
+            "secure_secret_12",  # Partial match
+            "secure_secret_1234",  # Extended
+            "SECURE_SECRET_123",  # Case variation
+        ]
+        
+        for invalid_key in invalid_keys:
+            headers = {}
+            if invalid_key is not None:
+                headers['HTTP_X_MY_APP_SECRET_KEY'] = invalid_key
+            
+            request = self.factory.get('/api/food/', **headers)
+            response = api_data_view(request)
+            
+            self.assertIsInstance(response, HttpResponseForbidden)
+
+    @patch('api_management.views.settings')
+    def test_header_injection_security_regression(self, mock_settings):
+        """Test header injection security hasn't regressed"""
+        mock_settings.INTERNAL_API_SECRET_KEY = "test_secret"
+        
+        # Test various header injection attempts
+        injection_attempts = [
+            "test_secret\r\nX-Injected: malicious",
+            "test_secret\nX-Injected: malicious",
+            "test_secret; X-Injected: malicious",
+        ]
+        
+        for malicious_key in injection_attempts:
+            request = self.factory.get('/api/food/', HTTP_X_MY_APP_SECRET_KEY=malicious_key)
+            response = api_data_view(request)
+            
+            # Should be forbidden due to key mismatch
+            self.assertIsInstance(response, HttpResponseForbidden)
+
+    @patch('api_management.views.settings')
+    def test_path_traversal_security_regression(self, mock_settings):
+        """Test path traversal security hasn't regressed"""
+        mock_settings.INTERNAL_API_SECRET_KEY = "test_secret"
+        
+        # Test various path traversal attempts
+        malicious_paths = [
+            "/api/../admin/",
+            "/api/food/../../../etc/passwd",
+            "/api/food/..%2F..%2Fadmin",
+        ]
+        
+        for malicious_path in malicious_paths:
+            request = self.factory.get(malicious_path, HTTP_X_MY_APP_SECRET_KEY="test_secret")
+            request.path = malicious_path
+            response = api_data_view(request)
+            
+            # Should return 404 for unknown paths
+            if isinstance(response, JsonResponse):
+                response_data = json.loads(response.content)
+                self.assertEqual(response_data['status'], 404)
+
+
+class ResponseFormatRegressionTests(TestCase):
+    """Test response format consistency regression"""
+
+    def setUp(self):
+        self.factory = RequestFactory()
+
+    def test_render_response_structure_regression(self):
+        """Test render_response structure hasn't changed"""
+        test_cases = [
+            (200, {"success": True, "data": "test"}),
+            (404, {"success": False, "error": "Not found"}),
+            (500, {"success": False, "error": "Server error"}),
+        ]
+        
+        for status, data in test_cases:
+            response = render_response(status, data)
+            
+            self.assertIsInstance(response, JsonResponse)
+            response_data = json.loads(response.content)
+            
+            # Check wrapper structure
+            self.assertIn('status', response_data)
+            self.assertIn('res', response_data)
+            self.assertEqual(response_data['status'], status)
+            self.assertEqual(response_data['res'], data)
+
+    def test_json_serialization_regression(self):
+        """Test JSON serialization hasn't regressed"""
+        complex_data = {
+            "foods": [
+                {"fdcId": 123, "nutrients": {"protein": 20.5}},
+                {"fdcId": 124, "nutrients": {"fat": 10.2}}
+            ],
+            "metadata": {"total": 2, "timestamp": "2023-01-01T00:00:00Z"},
+            "success": True
+        }
+        
+        response = render_response(200, complex_data)
+        self.assertIsInstance(response, JsonResponse)
+        
+        # Verify it can be parsed back
+        response_data = json.loads(response.content)
+        self.assertEqual(response_data['res'], complex_data)
+
+    @patch('api_management.views.settings')
+    def test_dispatcher_response_consistency_regression(self, mock_settings):
+        """Test dispatcher response consistency hasn't regressed"""
+        mock_settings.INTERNAL_API_SECRET_KEY = "test_secret"
+        
+        # Test all endpoints return consistent format
+        endpoints = ["/api/food/", "/api/foods/", "/api/recipe/nutrition/"]
+        
+        for endpoint in endpoints:
+            with patch('api_management.views.get_food_nutrition') as mock_food, \
+                 patch('api_management.views.get_multiple_foods') as mock_foods, \
+                 patch('api_management.views.calculate_recipe_nutrition') as mock_recipe:
+                
+                mock_food.return_value = {"success": True}
+                mock_foods.return_value = {"success": True}
+                mock_recipe.return_value = {"success": True}
+                
+                request = self.factory.get(endpoint, HTTP_X_MY_APP_SECRET_KEY="test_secret")
+                request.path = endpoint
+                response = api_data_view(request)
+                
+                self.assertIsInstance(response, JsonResponse)
+                response_data = json.loads(response.content)
+                
+                # Check consistent wrapper format
+                self.assertIn('status', response_data)
+                self.assertIn('res', response_data)
+                self.assertEqual(response_data['status'], 200)
 
 
 if __name__ == '__main__':

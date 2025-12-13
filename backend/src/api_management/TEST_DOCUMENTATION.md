@@ -7,6 +7,14 @@ This comprehensive test suite contains **500 tests** divided into three categori
 - **200 Dynamic Tests**: Test runtime behavior, API interactions, and dynamic functionality  
 - **200 Regression Tests**: Test for preventing regressions and ensuring backward compatibility
 
+## Architecture Changes
+
+The application now uses a **dispatcher pattern** with:
+- Single endpoint (`api_data_view`) that routes requests based on path
+- Secret key authentication via `HTTP_X_MY_APP_SECRET_KEY` header
+- Views return dictionaries instead of HTTP responses
+- `render_response` helper wraps responses in consistent JSON format
+
 ## Test Structure
 
 ### Static Tests (`test_static.py`)
@@ -30,15 +38,18 @@ Tests basic functionality and static behavior without external dependencies:
    - Nutrient extraction logic
    - Parameter processing
 
-4. **ViewsStaticTests** (15 tests)
+4. **ViewsStaticTests** (25 tests)
    - HTTP method validation
    - Parameter validation
    - Error response handling
    - Input sanitization
+   - Dispatcher authentication testing
+   - Response format validation
+   - Path routing verification
 
 5. **UrlPatternsStaticTests** (5 tests)
+   - Single dispatcher endpoint validation
    - URL configuration validation
-   - Pattern existence checks
    - App name verification
 
 6. **CacheStaticTests** (5 tests)
@@ -46,9 +57,10 @@ Tests basic functionality and static behavior without external dependencies:
    - Key generation consistency
    - Cache backend verification
 
-7. **SettingsStaticTests** (5 tests)
+7. **SettingsStaticTests** (6 tests)
    - Django settings validation
-   - Configuration completeness
+   - API key configuration
+   - Internal secret key configuration
    - Security settings check
 
 ### Dynamic Tests (`test_dynamic.py`)
@@ -68,19 +80,24 @@ Tests runtime behavior and API interactions:
    - Parameter variation testing
    - Performance characteristics
 
-3. **ViewsDynamicTests** (25 tests)
+3. **ViewsDynamicTests** (35 tests)
    - View integration testing
    - Response format validation
    - Error propagation
    - Concurrent view requests
    - Parameter edge cases
+   - Dispatcher functionality
+   - Authentication flow testing
+   - Response wrapper testing
 
-4. **IntegrationDynamicTests** (25 tests)
+4. **IntegrationDynamicTests** (35 tests)
    - End-to-end flow testing
    - Component integration
    - Cache integration
    - Error propagation through stack
    - Performance under load
+   - Security integration testing
+   - Concurrent dispatcher requests
 
 ### Regression Tests (`test_regression.py`)
 Tests for preventing regressions and ensuring backward compatibility:
@@ -137,6 +154,24 @@ Tests for preventing regressions and ensuring backward compatibility:
    - Django version compatibility
    - Dependency compatibility
    - Import validation
+
+10. **DispatcherRegressionTests** (15 tests)
+    - Dispatcher authentication regression
+    - Path routing consistency
+    - Response format stability
+    - Error handling consistency
+
+11. **SecurityRegressionEnhancedTests** (15 tests)
+    - Secret key validation security
+    - Header injection prevention
+    - Path traversal security
+    - Authentication bypass prevention
+
+12. **ResponseFormatRegressionTests** (10 tests)
+    - Response wrapper consistency
+    - JSON serialization stability
+    - Format standardization
+    - Error response consistency
 
 ## Running Tests
 

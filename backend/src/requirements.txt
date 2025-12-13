@@ -6,3 +6,4 @@ django-cors-headers==4.3.1
 httpx[http2]
 django-redis==5.4.0
 requests
+tzdata

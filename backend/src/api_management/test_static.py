@@ -6,7 +6,7 @@ Tests basic functionality, model validation, and static behavior
 import unittest
 from unittest.mock import Mock, patch, MagicMock
 from django.test import TestCase, RequestFactory
-from django.http import JsonResponse, HttpResponseBadRequest
+from django.http import JsonResponse, HttpResponseForbidden
 from django.core.cache import cache
 from django.conf import settings
 import json
@@ -14,7 +14,7 @@ import hashlib
 import httpx
 
 from .models import ApiResult, HTTP2Client, FoodDataCentralAPI
-from .views import get_food_nutrition, get_multiple_foods, calculate_recipe_nutrition
+from .views import get_food_nutrition, get_multiple_foods, calculate_recipe_nutrition, render_response, api_data_view
 
 
 class ApiResultStaticTests(TestCase):
@@ -372,98 +372,214 @@ class ViewsStaticTests(TestCase):
         self.factory = RequestFactory()
 
     def test_get_food_nutrition_wrong_method_post(self):
-        """Test get_food_nutrition with POST method returns error"""
+        """Test get_food_nutrition with POST method returns error dict"""
         request = self.factory.post('/food/')
         response = get_food_nutrition(request)
-        self.assertIsInstance(response, HttpResponseBadRequest)
+        self.assertIsInstance(response, dict)
+        self.assertFalse(response.get('success'))
+        self.assertEqual(response.get('error'), 'Bad Request')
 
     def test_get_food_nutrition_wrong_method_put(self):
-        """Test get_food_nutrition with PUT method returns error"""
+        """Test get_food_nutrition with PUT method returns error dict"""
         request = self.factory.put('/food/')
         response = get_food_nutrition(request)
-        self.assertIsInstance(response, HttpResponseBadRequest)
+        self.assertIsInstance(response, dict)
+        self.assertFalse(response.get('success'))
 
     def test_get_food_nutrition_wrong_method_delete(self):
-        """Test get_food_nutrition with DELETE method returns error"""
+        """Test get_food_nutrition with DELETE method returns error dict"""
         request = self.factory.delete('/food/')
         response = get_food_nutrition(request)
-        self.assertIsInstance(response, HttpResponseBadRequest)
+        self.assertIsInstance(response, dict)
+        self.assertFalse(response.get('success'))
 
     def test_get_food_nutrition_missing_food_parameter(self):
-        """Test get_food_nutrition without food parameter returns error"""
+        """Test get_food_nutrition without food parameter returns error dict"""
         request = self.factory.get('/food/')
         response = get_food_nutrition(request)
-        self.assertIsInstance(response, HttpResponseBadRequest)
+        self.assertIsInstance(response, dict)
+        self.assertFalse(response.get('success'))
+        self.assertEqual(response.get('error'), 'Bad Request')
 
     def test_get_food_nutrition_empty_food_parameter(self):
-        """Test get_food_nutrition with empty food parameter returns error"""
+        """Test get_food_nutrition with empty food parameter returns error dict"""
         request = self.factory.get('/food/', {'food': ''})
         response = get_food_nutrition(request)
-        self.assertIsInstance(response, HttpResponseBadRequest)
+        self.assertIsInstance(response, dict)
+        self.assertFalse(response.get('success'))
 
     def test_get_multiple_foods_wrong_method_post(self):
-        """Test get_multiple_foods with POST method returns error"""
+        """Test get_multiple_foods with POST method returns error dict"""
         request = self.factory.post('/foods/')
         response = get_multiple_foods(request)
-        self.assertIsInstance(response, HttpResponseBadRequest)
+        self.assertIsInstance(response, dict)
+        self.assertFalse(response.get('success'))
 
     def test_get_multiple_foods_missing_foods_parameter(self):
-        """Test get_multiple_foods without foods parameter returns error"""
+        """Test get_multiple_foods without foods parameter returns error dict"""
         request = self.factory.get('/foods/')
         response = get_multiple_foods(request)
-        self.assertIsInstance(response, HttpResponseBadRequest)
+        self.assertIsInstance(response, dict)
+        self.assertFalse(response.get('success'))
 
     def test_get_multiple_foods_non_list_parameter(self):
-        """Test get_multiple_foods with non-list foods parameter returns error"""
+        """Test get_multiple_foods with non-list foods parameter returns error dict"""
         request = self.factory.get('/foods/', {'foods': 'apple'})
         response = get_multiple_foods(request)
-        self.assertIsInstance(response, HttpResponseBadRequest)
+        self.assertIsInstance(response, dict)
+        self.assertFalse(response.get('success'))
 
     def test_calculate_recipe_nutrition_wrong_method_post(self):
-        """Test calculate_recipe_nutrition with POST method returns error"""
+        """Test calculate_recipe_nutrition with POST method returns error dict"""
         request = self.factory.post('/recipe/nutrition/')
         response = calculate_recipe_nutrition(request)
-        self.assertIsInstance(response, HttpResponseBadRequest)
+        self.assertIsInstance(response, dict)
+        self.assertFalse(response.get('success'))
 
     def test_calculate_recipe_nutrition_missing_recipe_parameter(self):
-        """Test calculate_recipe_nutrition without recipe parameter returns error"""
+        """Test calculate_recipe_nutrition without recipe parameter returns error dict"""
         request = self.factory.get('/recipe/nutrition/')
         response = calculate_recipe_nutrition(request)
-        self.assertIsInstance(response, HttpResponseBadRequest)
+        self.assertIsInstance(response, dict)
+        self.assertFalse(response.get('success'))
 
     def test_calculate_recipe_nutrition_non_dict_parameter(self):
-        """Test calculate_recipe_nutrition with non-dict recipe parameter returns error"""
+        """Test calculate_recipe_nutrition with non-dict recipe parameter returns error dict"""
         request = self.factory.get('/recipe/nutrition/', {'recipe': 'invalid'})
         response = calculate_recipe_nutrition(request)
-        self.assertIsInstance(response, HttpResponseBadRequest)
+        self.assertIsInstance(response, dict)
+        self.assertFalse(response.get('success'))
 
     def test_calculate_recipe_nutrition_missing_name(self):
-        """Test calculate_recipe_nutrition with recipe missing name returns error"""
+        """Test calculate_recipe_nutrition with recipe missing name returns error dict"""
         recipe = {'foodNutrients': ['apple', 'banana']}
         request = self.factory.get('/recipe/nutrition/', {'recipe': recipe})
         response = calculate_recipe_nutrition(request)
-        self.assertIsInstance(response, HttpResponseBadRequest)
+        self.assertIsInstance(response, dict)
+        self.assertFalse(response.get('success'))
 
     def test_calculate_recipe_nutrition_missing_nutrients(self):
-        """Test calculate_recipe_nutrition with recipe missing foodNutrients returns error"""
+        """Test calculate_recipe_nutrition with recipe missing foodNutrients returns error dict"""
         recipe = {'name': 'Test Recipe'}
         request = self.factory.get('/recipe/nutrition/', {'recipe': recipe})
         response = calculate_recipe_nutrition(request)
-        self.assertIsInstance(response, HttpResponseBadRequest)
+        self.assertIsInstance(response, dict)
+        self.assertFalse(response.get('success'))
 
     def test_calculate_recipe_nutrition_non_string_name(self):
-        """Test calculate_recipe_nutrition with non-string name returns error"""
+        """Test calculate_recipe_nutrition with non-string name returns error dict"""
         recipe = {'name': 123, 'foodNutrients': ['apple']}
         request = self.factory.get('/recipe/nutrition/', {'recipe': recipe})
         response = calculate_recipe_nutrition(request)
-        self.assertIsInstance(response, HttpResponseBadRequest)
+        self.assertIsInstance(response, dict)
+        self.assertFalse(response.get('success'))
 
     def test_calculate_recipe_nutrition_non_list_nutrients(self):
-        """Test calculate_recipe_nutrition with non-list foodNutrients returns error"""
+        """Test calculate_recipe_nutrition with non-list foodNutrients returns error dict"""
         recipe = {'name': 'Test Recipe', 'foodNutrients': 'apple'}
         request = self.factory.get('/recipe/nutrition/', {'recipe': recipe})
         response = calculate_recipe_nutrition(request)
-        self.assertIsInstance(response, HttpResponseBadRequest)
+        self.assertIsInstance(response, dict)
+        self.assertFalse(response.get('success'))
+
+    def test_render_response_function(self):
+        """Test render_response function creates proper JsonResponse"""
+        response = render_response(200, {"success": True})
+        self.assertIsInstance(response, JsonResponse)
+        
+        # Parse the response content
+        response_data = json.loads(response.content)
+        self.assertEqual(response_data['status'], 200)
+        self.assertEqual(response_data['res'], {"success": True})
+
+    def test_render_response_with_error(self):
+        """Test render_response function with error data"""
+        error_data = {"error": "Not found", "success": False}
+        response = render_response(404, error_data)
+        self.assertIsInstance(response, JsonResponse)
+        
+        response_data = json.loads(response.content)
+        self.assertEqual(response_data['status'], 404)
+        self.assertEqual(response_data['res'], error_data)
+
+    @patch('api_management.views.settings')
+    def test_api_data_view_invalid_secret_key(self, mock_settings):
+        """Test api_data_view with invalid secret key returns forbidden"""
+        mock_settings.INTERNAL_API_SECRET_KEY = "valid_secret"
+        
+        request = self.factory.get('/api/food/', HTTP_X_MY_APP_SECRET_KEY="invalid_secret")
+        response = api_data_view(request)
+        
+        self.assertIsInstance(response, HttpResponseForbidden)
+
+    @patch('api_management.views.settings')
+    def test_api_data_view_missing_secret_key(self, mock_settings):
+        """Test api_data_view with missing secret key returns forbidden"""
+        mock_settings.INTERNAL_API_SECRET_KEY = "valid_secret"
+        
+        request = self.factory.get('/api/food/')
+        response = api_data_view(request)
+        
+        self.assertIsInstance(response, HttpResponseForbidden)
+
+    @patch('api_management.views.settings')
+    @patch('api_management.views.get_food_nutrition')
+    def test_api_data_view_valid_food_request(self, mock_get_food, mock_settings):
+        """Test api_data_view with valid secret key and food request"""
+        mock_settings.INTERNAL_API_SECRET_KEY = "valid_secret"
+        mock_get_food.return_value = {"nutrition": {}, "success": True}
+        
+        request = self.factory.get('/api/food/', HTTP_X_MY_APP_SECRET_KEY="valid_secret")
+        request.path = "/api/food/"
+        response = api_data_view(request)
+        
+        self.assertIsInstance(response, JsonResponse)
+        response_data = json.loads(response.content)
+        self.assertEqual(response_data['status'], 200)
+
+    @patch('api_management.views.settings')
+    @patch('api_management.views.get_multiple_foods')
+    def test_api_data_view_valid_foods_request(self, mock_get_foods, mock_settings):
+        """Test api_data_view with valid secret key and foods request"""
+        mock_settings.INTERNAL_API_SECRET_KEY = "valid_secret"
+        mock_get_foods.return_value = [{"fdcId": 123}]
+        
+        request = self.factory.get('/api/foods/', HTTP_X_MY_APP_SECRET_KEY="valid_secret")
+        request.path = "/api/foods/"
+        response = api_data_view(request)
+        
+        self.assertIsInstance(response, JsonResponse)
+        response_data = json.loads(response.content)
+        self.assertEqual(response_data['status'], 200)
+
+    @patch('api_management.views.settings')
+    @patch('api_management.views.calculate_recipe_nutrition')
+    def test_api_data_view_valid_recipe_request(self, mock_calc_recipe, mock_settings):
+        """Test api_data_view with valid secret key and recipe request"""
+        mock_settings.INTERNAL_API_SECRET_KEY = "valid_secret"
+        mock_calc_recipe.return_value = {"protein": {"value": 20, "unit": "g"}}
+        
+        request = self.factory.get('/api/recipe/nutrition/', HTTP_X_MY_APP_SECRET_KEY="valid_secret")
+        request.path = "/api/recipe/nutrition/"
+        response = api_data_view(request)
+        
+        self.assertIsInstance(response, JsonResponse)
+        response_data = json.loads(response.content)
+        self.assertEqual(response_data['status'], 200)
+
+    @patch('api_management.views.settings')
+    def test_api_data_view_unknown_path(self, mock_settings):
+        """Test api_data_view with valid secret key but unknown path"""
+        mock_settings.INTERNAL_API_SECRET_KEY = "valid_secret"
+        
+        request = self.factory.get('/api/unknown/', HTTP_X_MY_APP_SECRET_KEY="valid_secret")
+        request.path = "/api/unknown/"
+        response = api_data_view(request)
+        
+        self.assertIsInstance(response, JsonResponse)
+        response_data = json.loads(response.content)
+        self.assertEqual(response_data['status'], 404)
+        self.assertFalse(response_data['res']['success'])
 
 
 class UrlPatternsStaticTests(TestCase):
@@ -480,23 +596,23 @@ class UrlPatternsStaticTests(TestCase):
         from .urls import app_name
         self.assertEqual(app_name, 'api_management')
 
-    def test_food_url_pattern_exists(self):
-        """Test that food URL pattern exists"""
+    def test_api_data_view_pattern_exists(self):
+        """Test that api_data_view URL pattern exists"""
         from .urls import urlpatterns
-        food_patterns = [p for p in urlpatterns if 'food' in str(p.pattern)]
-        self.assertGreater(len(food_patterns), 0)
+        self.assertEqual(len(urlpatterns), 1)
+        pattern = urlpatterns[0]
+        self.assertEqual(pattern.name, 'api_data_view')
 
-    def test_foods_url_pattern_exists(self):
-        """Test that foods URL pattern exists"""
+    def test_single_endpoint_architecture(self):
+        """Test that there's only one URL pattern for the dispatcher"""
         from .urls import urlpatterns
-        foods_patterns = [p for p in urlpatterns if 'foods' in str(p.pattern)]
-        self.assertGreater(len(foods_patterns), 0)
-
-    def test_recipe_nutrition_url_pattern_exists(self):
-        """Test that recipe nutrition URL pattern exists"""
+        self.assertEqual(len(urlpatterns), 1)
+        
+    def test_empty_path_pattern(self):
+        """Test that the URL pattern uses empty path"""
         from .urls import urlpatterns
-        recipe_patterns = [p for p in urlpatterns if 'recipe' in str(p.pattern)]
-        self.assertGreater(len(recipe_patterns), 0)
+        pattern = urlpatterns[0]
+        self.assertEqual(str(pattern.pattern), '')
 
 
 class CacheStaticTests(TestCase):
@@ -540,6 +656,10 @@ class SettingsStaticTests(TestCase):
     def test_api_key_setting_exists(self):
         """Test that API_KEY setting exists"""
         self.assertTrue(hasattr(settings, 'API_KEY'))
+
+    def test_internal_api_secret_key_setting_exists(self):
+        """Test that INTERNAL_API_SECRET_KEY setting exists"""
+        self.assertTrue(hasattr(settings, 'INTERNAL_API_SECRET_KEY'))
 
     def test_installed_apps_contains_api_management(self):
         """Test that api_management is in INSTALLED_APPS"""

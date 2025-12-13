@@ -47,17 +47,18 @@ class HTTP2Client:
             return f"{self.base_url}/{path.lstrip('/')}"
         return path
 
-    def _send_once(self, method, url, **kwargs):
+    def _send_once(self, method, url, params,payload={}):
         """Send a single HTTP request without retry logic."""
         full_url = self.build_url(url)                  # Build full URL
-
+        
         try:
-            resp = self.client.request(method, full_url, **kwargs)  # Perform HTTP/2 request
+            resp = self.client.request(method, full_url, params=params,json=payload)  # Perform HTTP/2 request
+            
             return ApiResult(True, resp.status_code, resp.text, raw=resp)
 
         except Exception as e:
-            # Any network/transport error is captured as failure
-            return ApiResult(False, None, None, f"Request error: {e}")
+           #Any network/transport error is captured as failure
+           return ApiResult(False, None, None, f"Request error: {e}")
 
     def _parse_json_if_possible(self, result):
         """Try to parse JSON if response is JSON."""
@@ -72,8 +73,8 @@ class HTTP2Client:
         content_type = resp.headers.get("content-type", "")
         if "application/json" in content_type.lower():
             try:
-                data = resp.json()                            # Parse JSON
-                return ApiResult(True, resp.status_code, data, raw=resp)
+              data = resp.json()                            # Parse JSON
+              return ApiResult(True, resp.status_code, data, raw=resp)
             except Exception:
                 # JSON was expected but invalid
                 return ApiResult(False, resp.status_code, None, "Invalid JSON response", raw=resp)
@@ -81,12 +82,12 @@ class HTTP2Client:
         # Not JSON → keep text
         return ApiResult(True, resp.status_code, resp.text, raw=resp)
 
-    def _send_with_retry(self, method, url, expected_status=(200,), **kwargs):
+    def _send_with_retry(self, method, url, expected_status=(200,), params={},json={}):
         """Send HTTP request with retry + backoff and status code validation."""
         for attempt in range(self.retries + 1):
             # Send request once
-            result = self._send_once(method, url, **kwargs)
-
+            result = self._send_once(method, url, params,json)
+            
             # Try to parse JSON if applicable
             result = self._parse_json_if_possible(result)
 
@@ -99,7 +100,7 @@ class HTTP2Client:
                 )
                 time.sleep(delay)
                 continue
-
+            
             # If response succeeded but status code unexpected → treat as error
             if expected_status and result.status not in expected_status:
                 error_msg = f"Unexpected status {result.status}"
@@ -112,16 +113,15 @@ class HTTP2Client:
         # Exhausted retries
         return ApiResult(False, None, None, "Failed after retries")
 
-    def request(self, method, url, *, expected_status=(200,), **kwargs):
+    def request(self, method, url, *, expected_status=(200,), params={},json={}):
         """
         Public synchronous request method.
         Returns ApiResult with .success, .status, .data, .error.
         """
-        return self._send_with_retry(method, url, expected_status, **kwargs)
+        
+        return self._send_with_retry(method, url, expected_status, params,json)
 
 
-
-    
 
 
     
@@ -143,7 +143,7 @@ class FoodDataCentralAPI(HTTP2Client):
             backoff=0.5
         )
         self.api_key = api_key
-
+       
     # --------------------------------------------------
     # Helpers
     # --------------------------------------------------
@@ -160,34 +160,31 @@ class FoodDataCentralAPI(HTTP2Client):
         raw = json.dumps(payload, sort_keys=True, ensure_ascii=False)
         digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()
         return f"fdc:{prefix}:{digest}"
+    
 
+    
+    
     # --------------------------------------------------
     # Search ingredient (CACHED)
     # --------------------------------------------------
-    def search_ingredient(self, ingredient_name: str, page_size: int = 10) -> List[Dict]:
+    def search_ingredient(self, ingredient_name: str, page_size: int = 10):
         params = self._with_key({
             "query": ingredient_name,
-            "pageSize": page_size
+            "pageSize": page_size,
         })
-
-        cache_key = self._cache_key("search", params)
-
-        # 1. Try cache first
+        cache_key = f"fdc:food:name:{ingredient_name}"
         cached = cache.get(cache_key)
         if cached is not None:
             return cached
-
         # 2. Call USDA API
         result = self.request("GET", "foods/search", params=params)
         if not result:
             return []
 
         foods = result.data.get("foods", [])
-
-        # 3. Save to cache
-        cache.set(cache_key, foods, self.SEARCH_TTL)
-
+        cache.set(cache_key, foods, self.FOOD_TTL)
         return foods
+
 
     # --------------------------------------------------
     # Get single food nutrition (CACHED)
@@ -201,12 +198,14 @@ class FoodDataCentralAPI(HTTP2Client):
 
         params = self._with_key({})
         result = self.request("GET", f"food/{fdc_id}", params=params)
-
         if not result:
             return None
 
         cache.set(cache_key, result.data, self.FOOD_TTL)
         return result.data
+    
+
+
 
     # --------------------------------------------------
     # Get multiple foods (CACHED)
@@ -219,8 +218,9 @@ class FoodDataCentralAPI(HTTP2Client):
         if cached is not None:
             return cached
 
-        params = self._with_key({})
-        result = self.request("POST", "foods", params=params, json=payload)
+        params = self._with_key()
+
+        result = self.request("POST", "foods", params=params, json={"fdcIds": fdc_ids})
 
         if not result:
             return []
@@ -228,10 +228,16 @@ class FoodDataCentralAPI(HTTP2Client):
         cache.set(cache_key, result.data, self.MULTI_TTL)
         return result.data
 
-    # --------------------------------------------------
-    # Nutrient extraction (unchanged)
-    # --------------------------------------------------
-    def extract_key_nutrients(self, food_data: Dict) -> Dict[str, Dict]:
+    def extract_key_nutrients(self, food_data: Dict) -> Dict[str, float]:
+        """
+        Extract key nutrients from food data
+        
+        Args:
+            food_data: Full food data from API
+            
+        Returns:
+            Dictionary with key nutrients (protein, fat, carbs, calories)
+        """
         nutrients = {}
         nutrient_mapping = {
             "Protein": "protein",
@@ -241,27 +247,52 @@ class FoodDataCentralAPI(HTTP2Client):
             "Fiber, total dietary": "fiber",
             "Sugars, total including NLEA": "sugars"
         }
-
+        
         for nutrient in food_data.get("foodNutrients", []):
-            nutrient_name = (
-                nutrient.get("nutrient", {}).get("name")
-                or nutrient.get("nutrientName")
-            )
-
+            nutrient_name = nutrient.get("nutrient", {}).get("name") or nutrient.get("nutrientName")
             if nutrient_name in nutrient_mapping:
                 key = nutrient_mapping[nutrient_name]
                 value = nutrient.get("amount") or nutrient.get("value", 0)
-                unit = (
-                    nutrient.get("nutrient", {}).get("unitName")
-                    or nutrient.get("unitName", "")
-                )
+                unit = nutrient.get("nutrient", {}).get("unitName") or nutrient.get("unitName", "")
                 nutrients[key] = {
                     "value": value,
                     "unit": unit
                 }
-
+        
         return nutrients
     
+
+    def calculate_recipe_nutrition(self,ingredients: List[Dict]) -> Dict:
+        """
+        Calculate total nutrition for a recipe
+        
+        Args:
+            ingredients: List of dicts with 'fdc_id' and 'amount_grams'
+            fdc_api: FoodDataCentralAPI instance
+            
+        Returns:
+            Total nutrition for the recipe
+        """
+        total_nutrition = {
+            "protein": 0,
+            "fat": 0,
+            "carbohydrates": 0,
+            "calories": 0
+        }
+        
+        for ingredient in ingredients:
+            food_data = self.get_food_nutrition(ingredient['fdc_id'])
+            if food_data:
+                nutrients = self.extract_key_nutrients(food_data)
+                amount_grams = ingredient['amount_grams']
+                
+                # Calculate based on actual amount (nutrients are per 100g)
+                for key in total_nutrition:
+                    if key in nutrients:
+                        value = nutrients[key]['value']
+                        total_nutrition[key] += (value * amount_grams) / 100
+        
+        return total_nutrition
 
 
     def search_food_according_filter(self, filter_criteria: Dict) -> List[Dict]:
