@@ -15,7 +15,7 @@ def call_internal_api_view(location,info):
     Location:
        1) /api/food/nutritions/ -> Getting the ingredients of food 
        2) /api/foods/ -> Getting the ingredients of multiple foods
-       3) /api/recipe/nutritions/ -> Getting the ingredients of recipe
+       3) /api/recipe/nutritions/ -> Getting the nutritions of recipe
     Info format according the location option:
         1 -> {'food':<str name of the food>}
         2 -> {'foods':<List of strings(names of the food)>}

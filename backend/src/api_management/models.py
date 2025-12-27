@@ -295,59 +295,7 @@ class FoodDataCentralAPI(HTTP2Client):
         return total_nutrition
 
 
-    def search_food_according_filter(self, filter_criteria: Dict) -> List[Dict]:
-        """
-        Search for foods matching specific dietary filters.
-        
-        Args:
-            filter_criteria (Dict): Filter specifications like:
-                - {"lactose_free": True}
-                - {"gluten_free": True}
-                - {"vegan": True}
-                - {"max_calories": 100}
-                
-        Returns:
-            List[Dict]: List of matching foods
-            
-        Note: This is a placeholder implementation. Full implementation would
-              require integration with USDA food search API or custom database.
-        """
-        
-
-    def search_food_replace_filter(self, food: Dict, filter_criteria: Dict) -> List[Dict]:
-        """
-        Search for substitute foods matching dietary filters.
-        
-        Args:
-            food (Dict): Original food to replace
-            filter_criteria (Dict): Dietary requirements for substitute
-            
-        Returns:
-            List[Dict]: List of suitable substitute foods
-            
-        Note: This is a placeholder implementation. Full implementation would
-              require nutritional similarity analysis and dietary compatibility.
-        """
-        
-
-    def search_according_substring(self, substring: str) -> Dict[str, Dict]:
-        """
-        Search for foods by partial name matching.
-        
-        Args:
-            substring (str): Partial food name to search for
-            
-        Returns:
-            Dict[str, Dict]: Dictionary mapping food names to their data
-            
-        Example:
-            >>> results = api.search_according_substring("rice")
-            >>> # Returns: {"Brown Rice": {...}, "White Rice": {...}, "Wild Rice": {...}}
-            
-        Note: This is a placeholder implementation. Full implementation would
-              require integration with USDA food search API.
-        """
-        
+    
 
 
 

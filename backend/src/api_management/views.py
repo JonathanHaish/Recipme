@@ -40,7 +40,8 @@ def get_food_nutrition(info):
     
     nutrition_data = food_api.get_food_nutrition(food.get("id"))
     if not nutrition_data:
-        return {"error":"The food not found in the system","success":False} 
+        return {"error":"The food not found in the system","success":False}
+ 
     
     nutritions = food_api.extract_key_nutrients(nutrition_data)
     if nutritions:
@@ -79,34 +80,7 @@ def get_multiple_foods(info):
     
 
 
-def calculate_recipe_nutrition(info):
-    """
-    Docstring for calculate_recipe_nutrition
-    The function receives a recipe and returns the summary of the foodNutrients.
-    the function get in the info the parameter 'recipe'-> dict in the format:
-    {'name':'<name of the reccipe>','foodNutrients':<list of foodNutrients(list of dicts)>} 
-    """
- 
-    
-    if not isinstance(info,dict):
-       return {"error":"Bad Request","success":False}
-    
-   
-    
-    name_recipe = info.get("name")
-    foodNutrients = info.get("foodNutrients")
-    
-    if not isinstance(name_recipe,str) or not isinstance(foodNutrients,list):
-        return {"error":"Bad Request","success":False}
-    
-    
-    list_check = [(isinstance(item,dict) and isinstance(item.get("name"),str) and isinstance(item.get("amount_grams"),int)) for item in foodNutrients]
-    
-    if False in list_check:
-       return {"error":"Bad Request","success":False} 
 
-    print("test")
-    return food_api.extract_key_nutrients({"name":name_recipe,"foodNutrients":foodNutrients})
     
 
 def render_response(status,res):
@@ -119,6 +93,59 @@ def render_response(status,res):
             'res': res
     }
     return JsonResponse(data)
+
+
+def extract_food_variants(foods_json):
+    """
+    Docstring for extract_food_variants
+    Extract the format of list of food types  
+    :param foods_json: Description
+    """
+
+    all_variants = []
+
+    def normalize(entry):
+        return {
+            "fdcId": entry.get("fdcId"),
+            "description": entry.get("description"),
+            "brandOwner": entry.get("brandOwner"),
+            "brandName": entry.get("brandName"),
+            "subbrandName": entry.get("subbrandName"),
+            "gtinUpc": entry.get("gtinUpc"),
+            "publicationDate": entry.get("publicationDate"),
+            "packageWeight": entry.get("packageWeight"),
+            "servingSize": entry.get("servingSize"),
+            "servingSizeUnit": entry.get("servingSizeUnit"),
+            "ingredients": entry.get("ingredients"),
+            "marketCountry": entry.get("marketCountry")
+        }
+
+ 
+    if isinstance(foods_json, dict):
+        foods_json = [foods_json]
+
+
+    for food in foods_json:
+       
+        variants = []
+
+        
+        variants.append(normalize(food))
+
+        
+        for update in food.get("foodUpdateLog", []):
+            variants.append(normalize(update))
+
+ 
+        unique = {}
+        for v in variants:
+            if v["fdcId"] is not None:
+                unique[v["fdcId"]] = v
+
+        all_variants.extend(unique.values())
+
+    return all_variants
+
 
 
 def api_data_view(location,key,info):
@@ -137,12 +164,9 @@ def api_data_view(location,key,info):
         ##get multiple food's nutritions
         if location == "/api/foods/":
             data = get_multiple_foods(info)
-            return render_response(status=200,res=data)
+            list_foods = extract_food_variants(data)
+            return render_response(status=200,res=list_foods)
         
-        #get recipe's nutritions
-        if location == "/api/recipe/nutritions/":
-            data = calculate_recipe_nutrition(info)
-            return render_response(status=200,res=data)
         
         return render_response(status=404,res={})
         
