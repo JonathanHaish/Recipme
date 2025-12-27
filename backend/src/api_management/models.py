@@ -7,7 +7,7 @@ from django.core.cache import cache
 import json
 import hashlib
 from mysite.settings import API_KEY
-
+import datetime
 class ApiResult:
     """Structured result object for HTTP calls."""
     def __init__(self, success, status=None, data=None, error=None, raw=None):
@@ -152,6 +152,8 @@ class FoodDataCentralAPI(HTTP2Client):
         params = params or {}
         params["api_key"] = self.api_key
         return params
+    
+
 
     def _cache_key(self, prefix: str, payload: Dict) -> str:
         """
@@ -162,72 +164,70 @@ class FoodDataCentralAPI(HTTP2Client):
         return f"fdc:{prefix}:{digest}"
     
 
-    
-    
-    # --------------------------------------------------
-    # Search ingredient (CACHED)
-    # --------------------------------------------------
-    def search_ingredient(self, ingredient_name: str, page_size: int = 10):
+    def generate_product_tagline(self,food_json: dict):
+        """
+        The function generate the tag product
+        """
+        #1. Product Type and Category
+        description = food_json.get('description', 'None')
+        category = food_json.get('foodCategory', 'None')
+        
+        #2. Extracting fat percentage (from the nutrient list)
+        fat_value = 0
+        nutrients = food_json.get('foodNutrients', [])
+        for n in nutrients:
+            # Searches for the exact name of a fat in an FDC
+            if n.get('nutrientName') == 'Total lipid (fat)':
+                fat_value = n.get('value', 0)
+                break
+        
+        # 3. Company name extraction (only available in branded products)
+        brand = food_json.get('brandOwner') or food_json.get('brandName')
+        if not brand:
+            # If it's Survey Food, there is no specific company
+            if food_json.get('dataType') == 'Survey (FNDDS)':
+                brand = "Ganery product"
+            else:
+                brand = "Unknown product"
+
+        # 4. Constructing the sentence in the desired structure
+        # Rounding the fat percentage to one gram or leaving one decimal point
+        fat_str = f"{fat_value}% fat" if fat_value > 0 else "none fat"
+        fdc_id = food_json.get('fdcId',0)
+        
+        tagline = {"id":fdc_id,"name":description,"category":category,"description":brand,"fat_str":fat_str}
+        return tagline
+
+
+
+    def search_ingredients(self,ingredient_name: str):
+        """
+        Docstring for search_ingredients
+        The function search ingredient and return list of options 
+     
+        :param ingredient_name: name of the ingredient
+        :type ingredient_name: str
+        """
         params = self._with_key({
-            "query": ingredient_name,
-            "pageSize": page_size,
+            "query": ingredient_name
         })
-        cache_key = f"fdc:food:name:{ingredient_name}"
+        
+        cache_key = f"fdc_sys:food:name:{ingredient_name}"
         cached = cache.get(cache_key)
-        if cached is not None:
-            return cached
-        # 2. Call USDA API
+        if cached is not None and cached != '':
+           return cached
         result = self.request("GET", "foods/search", params=params)
         if not result:
             return []
+        
 
+        options=[]
         foods = result.data.get("foods", [])
-        cache.set(cache_key, foods, self.FOOD_TTL)
-        return foods
-
-
-    # --------------------------------------------------
-    # Get single food nutrition (CACHED)
-    # --------------------------------------------------
-    def get_food_nutrition(self, fdc_id: int) -> Optional[Dict]:
-        cache_key = f"fdc:food:{fdc_id}"
-
-        cached = cache.get(cache_key)
-        if cached is not None:
-            return cached
-
-        params = self._with_key({})
-        result = self.request("GET", f"food/{fdc_id}", params=params)
-        if not result:
-            return None
-
-        cache.set(cache_key, result.data, self.FOOD_TTL)
-        return result.data
+        for food in foods:
+            options.append(self.generate_product_tagline(food))
+        cache.set(cache_key,options,self.FOOD_TTL)
+        return options
     
-
-
-
-    # --------------------------------------------------
-    # Get multiple foods (CACHED)
-    # --------------------------------------------------
-    def get_multiple_foods(self, fdc_ids: List[int]) -> List[Dict]:
-        payload = {"fdcIds": sorted(fdc_ids)}
-        cache_key = self._cache_key("multi", payload)
-
-        cached = cache.get(cache_key)
-        if cached is not None:
-            return cached
-
-        params = self._with_key()
-
-        result = self.request("POST", "foods", params=params, json={"fdcIds": fdc_ids})
-
-        if not result:
-            return []
-
-        cache.set(cache_key, result.data, self.MULTI_TTL)
-        return result.data
-
     def extract_key_nutrients(self, food_data: Dict) -> Dict[str, float]:
         """
         Extract key nutrients from food data
@@ -260,39 +260,32 @@ class FoodDataCentralAPI(HTTP2Client):
                 }
         
         return nutrients
+        
     
 
-    def calculate_recipe_nutrition(self,ingredients: List[Dict]) -> Dict:
+    def search_food_nutritions(self,food_id):
         """
-        Calculate total nutrition for a recipe
-        
-        Args:
-            ingredients: List of dicts with 'fdc_id' and 'amount_grams'
-            fdc_api: FoodDataCentralAPI instance
-            
-        Returns:
-            Total nutrition for the recipe
+        Docstring for search_food_nutritions
+        The function get the food nutritions
+        :param food_id: fdc_id
         """
-        total_nutrition = {
-            "protein": 0,
-            "fat": 0,
-            "carbohydrates": 0,
-            "calories": 0
-        }
+        params = self._with_key({
+            "query": food_id
+        })
+
+        cache_key = f"fdc_sys:food:nutritions:{food_id}"
+        cached = cache.get(cache_key)
+        if cached is not None and cached != '':
+           return cached
         
-        for ingredient in ingredients:
-            food_data = self.get_food_nutrition(ingredient['fdc_id'])
-            if food_data:
-                nutrients = self.extract_key_nutrients(food_data)
-                amount_grams = ingredient['amount_grams']
-                
-                # Calculate based on actual amount (nutrients are per 100g)
-                for key in total_nutrition:
-                    if key in nutrients:
-                        value = nutrients[key]['value']
-                        total_nutrition[key] += (value * amount_grams) / 100
-        
-        return total_nutrition
+        result = self.request("GET", f"food/{food_id}", params=params)
+        if not result:
+            return {}
+        #cache.set(cache_key,options,self.FOOD_TTL)
+        nutritions = self.extract_key_nutrients(result.data)
+        cache.set(cache_key,nutritions,self.FOOD_TTL)    
+        return nutritions
+
 
 
     

@@ -9,19 +9,26 @@ def call_internal_api_view(location,info):
     Docstring for call_internal_api_view
     The function get:
         location - option how to use in the API
-        info - the request parameters as dict
+        info - the parameters
 
     the options are:
     Location:
-       1) /api/food/nutritions/ -> Getting the ingredients of food 
-       2) /api/foods/ -> Getting the ingredients of multiple foods
-       3) /api/recipe/nutritions/ -> Getting the nutritions of recipe
-    Info format according the location option:
-        1 -> {'food':<str name of the food>}
-        2 -> {'foods':<List of strings(names of the food)>}
-        3 -> {'name':<str name of the recipe>,'foodNutrients':<List of Dicts -> list of {'name':'<name of food>','amount_grams':<number>}
+        1) /api/food/ ->  get list of options(types) of the food: [{"id":fdc_id,"name":description,"category":category,"description":brand,"fat_str":fat_str}...]
+        2) /api/food/nutritions/ -> get the nutritions of the food:
+        {
+            "Protein": "protein",
+            "Total lipid (fat)": "fat",
+            "Carbohydrate, by difference": "carbohydrates",
+            "Energy": "calories",
+            "Fiber, total dietary": "fiber",
+            "Sugars, total including NLEA": "sugars"
+        }
+    info:
+    1 -> string of name of the food
+    2 -> ID of the food according the fdc.nal.usda.gov 
+      
     """
-    key = settings.INTERNAL_API_SECRET_KEY
+    key = settings.API_KEY
     return api_data_view(location,key,info)
     
 
@@ -29,10 +36,9 @@ def call_internal_api_view(location,info):
 
 
 def testAPI(request):
-    
     info = request.GET if request.method == 'GET' else request.POST
     location = info.get("path")
-    data = json.loads(info.get("data"))
+    data = info.get("data")
     return call_internal_api_view(location,data)
 
 
