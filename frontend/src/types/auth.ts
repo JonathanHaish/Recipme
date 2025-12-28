@@ -5,15 +5,14 @@ export interface User {
 }
 
 export interface LoginRequest {
-  username: string;
+  email: string;
   password: string;
 }
 
 export interface RegisterRequest {
-  username: string;
+  email: string;
   password: string;
   password2: string;
-  email: string;
 }
 
 export interface LoginResponse {

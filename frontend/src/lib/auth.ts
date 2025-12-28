@@ -47,8 +47,12 @@ class APIClient {
       credentials: 'include', // Important: sends cookies with request
     });
 
-    // Handle token refresh on 401
-    if (response.status === 401) {
+    // Endpoints that should not trigger token refresh
+    const noRefreshEndpoints = ['/login', '/register', '/forgot-password', '/reset-password'];
+    const shouldSkipRefresh = noRefreshEndpoints.some(endpoint => url.includes(endpoint));
+
+    // Handle token refresh on 401, but not for auth endpoints
+    if (response.status === 401 && !shouldSkipRefresh) {
       if (!this.isRefreshing) {
         this.isRefreshing = true;
         try {
@@ -85,6 +89,20 @@ class APIClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Request failed' }));
+      
+      // Handle Django REST Framework validation errors (field-based)
+      if (typeof error === 'object' && !error.error && !error.message) {
+        // Convert field errors to readable message
+        const fieldErrors = Object.entries(error)
+          .map(([field, messages]) => {
+            const errorMessages = Array.isArray(messages) ? messages : [messages];
+            return errorMessages.join(' ');
+          })
+          .join(' ');
+        
+        throw new Error(fieldErrors || 'Request failed');
+      }
+      
       throw new Error(error.error || error.message || 'Request failed');
     }
 
@@ -167,6 +185,26 @@ export const authAPI = {
     } catch {
       return false;
     }
+  },
+
+  /**
+   * Request password reset - sends email with reset link
+   */
+  forgotPassword: async (email: string): Promise<{ message: string }> => {
+    return apiClient.request(`${API_URL}/api/auth/forgot-password`, {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  /**
+   * Reset password using token from email
+   */
+  resetPassword: async (data: { uid: string; token: string; password: string; password2: string }): Promise<{ message: string }> => {
+    return apiClient.request(`${API_URL}/api/auth/reset-password`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   },
 };
 

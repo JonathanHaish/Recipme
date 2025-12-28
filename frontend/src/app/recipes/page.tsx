@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Search, Heart, Bookmark, ChefHat } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Search, Heart, Bookmark, ChefHat, LogOut, User } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Recipe {
   id: number;
@@ -13,6 +15,8 @@ interface Recipe {
 
 export default function RecipesPage() {
   const [favorites, setFavorites] = useState<Record<number, boolean>>({});
+  const { user, loading, logout } = useAuth();
+  const router = useRouter();
 
   const recipes: Recipe[] = [
     { id: 1, title: "Recipe Title", date: "Date & time", likes: 0, tag: "Vegetarian" },
@@ -27,8 +31,13 @@ export default function RecipesPage() {
     setFavorites((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const handleLogout = async () => {
+    await logout();
+    router.push("/login");
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 p-6" dir="rtl">
+    <div className="min-h-screen bg-gray-50 p-6" dir="ltr">
       {/* Header */}
       <div className="max-w-5xl mx-auto mb-8">
         <div className="flex items-center justify-between mb-6">
@@ -36,7 +45,7 @@ export default function RecipesPage() {
             <ChefHat className="w-10 h-10 text-black" />
             <h1 className="text-3xl font-bold text-black">Recipes</h1>
           </div>
-          <div className="flex gap-3">
+          <div className="flex items-center gap-3">
             <button className="px-4 py-2 border border-black rounded hover:bg-gray-100 text-black">
               Admin points
             </button>
@@ -46,16 +55,45 @@ export default function RecipesPage() {
             <button className="px-4 py-2 border border-black rounded hover:bg-gray-100 text-black">
               Filters
             </button>
+            
+            {/* User Info & Logout */}
+            <div className="flex items-center gap-2 pl-3 border-l-2 border-gray-300">
+              {loading ? (
+                <div className="text-sm text-gray-600">Loading...</div>
+              ) : user ? (
+                <>
+                  <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded">
+                    <User className="w-4 h-4 text-black" />
+                    <span className="text-sm font-medium text-black">{user.email}</span>
+                  </div>
+                  <button
+                    onClick={handleLogout}
+                    className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded hover:bg-gray-800 transition-colors"
+                    title="Logout"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span className="text-sm">Logout</span>
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => router.push("/login")}
+                  className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800"
+                >
+                  Login
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Search Bar */}
         <div className="relative">
-          <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-black" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-black" />
           <input
             type="text"
             placeholder="Search recipes"
-            className="w-full pr-10 pl-4 py-2 border border-black rounded text-black"
+            className="w-full pl-10 pr-4 py-2 border border-black rounded text-black"
           />
         </div>
       </div>

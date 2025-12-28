@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { authAPI } from "@/lib/auth";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -10,6 +12,14 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
+  const { isAuthenticated, loading: authLoading } = useAuth();
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (!authLoading && isAuthenticated) {
+      router.push("/recipes");
+    }
+  }, [isAuthenticated, authLoading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -17,37 +27,46 @@ export default function LoginPage() {
     setError("");
 
     try {
-      // כאן תוסיף את קריאת ה-API ל-backend
-      console.log("Logging in with:", { email, password });
-
-      // לדוגמה:
-      // const response = await fetch("http://localhost:8000/api/login/", {
-      //   method: "POST",
-      //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify({ email, password }),
-      // });
-
-      // אם ההתחברות הצליחה, מעבר ל-recipes
-      alert("התחברות הצליחה! מעבר לעמוד המתכונים");
+      const response = await authAPI.login({ email, password });
+      console.log("Login successful:", response);
+      
+      // Redirect to recipes page on success
       router.push("/recipes");
-    } catch (err) {
-      setError("שגיאה בהתחברות");
+    } catch (err: any) {
+      console.error("Login error:", err);
+      setError(err.message || "Invalid email or password");
     } finally {
       setLoading(false);
     }
   };
 
+  // Show loading while checking auth
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-black">
+        <div className="text-center">
+          <p className="text-zinc-600 dark:text-zinc-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render login form if already authenticated
+  if (isAuthenticated) {
+    return null;
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-black">
       <div className="w-full max-w-md rounded-lg bg-white dark:bg-zinc-900 p-8 shadow-lg">
         <h1 className="mb-6 text-3xl font-bold text-center text-black dark:text-zinc-50">
-          התחברות
+          Login
         </h1>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              אימייל
+              Email
             </label>
             <input
               type="email"
@@ -61,7 +80,7 @@ export default function LoginPage() {
 
           <div>
             <label className="block mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              סיסמה
+              Password
             </label>
             <input
               type="password"
@@ -73,13 +92,13 @@ export default function LoginPage() {
             />
           </div>
 
-          {/* קישור "שכחתי סיסמה" */}
+          {/* Forgot password link */}
           <div className="text-right">
             <Link
               href="/forgot-password"
               className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
             >
-              שכחתי סיסמה
+              Forgot password?
             </Link>
           </div>
 
@@ -94,19 +113,19 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full rounded-lg bg-black px-4 py-2 font-medium text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
           >
-            {loading ? "מתחבר..." : "התחבר"}
+            {loading ? "Logging in..." : "Login"}
           </button>
         </form>
 
-        {/* כפתור הירשם */}
+        {/* Register button */}
         <div className="mt-6 text-center">
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            עדיין אין לך חשבון?{" "}
+            Don't have an account?{" "}
             <Link
               href="/register"
               className="font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
             >
-              הירשם עכשיו
+              Register now
             </Link>
           </p>
         </div>

@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { authAPI } from "@/lib/auth";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function RegisterPage() {
   const [email, setEmail] = useState("");
@@ -9,47 +12,79 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
+  const router = useRouter();
+  const { isAuthenticated, loading: authLoading } = useAuth();
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (!authLoading && isAuthenticated) {
+      router.push("/recipes");
+    }
+  }, [isAuthenticated, authLoading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
 
-    // בדיקה שהסיסמאות תואמות
+    // Check that passwords match
     if (password !== confirmPassword) {
-      setError("הסיסמאות לא תואמות");
+      setError("Passwords don't match");
       setLoading(false);
       return;
     }
 
     try {
-      console.log("Registering with:", { email, password });
-      // כאן תוסיף את קריאת ה-API ל-backend
-      // const response = await fetch("http://localhost:8000/api/register/", {
-      //   method: "POST",
-      //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify({ email, password }),
-      // });
+      await authAPI.register({ email, password, password2: confirmPassword });
+      console.log("Registration successful");
+      setSuccess(true);
       
-      alert("הרשמה הצליחה! (עדיין לא מחובר ל-API)");
-    } catch (err) {
-      setError("שגיאה בהרשמה");
+      // Redirect to login after 2 seconds
+      setTimeout(() => {
+        router.push("/login");
+      }, 2000);
+    } catch (err: any) {
+      console.error("Registration error:", err);
+      setError(err.message || "Registration failed. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
+  // Show loading while checking auth
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-black">
+        <div className="text-center">
+          <p className="text-zinc-600 dark:text-zinc-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render register form if already authenticated
+  if (isAuthenticated) {
+    return null;
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-black">
       <div className="w-full max-w-md rounded-lg bg-white dark:bg-zinc-900 p-8 shadow-lg">
         <h1 className="mb-6 text-3xl font-bold text-center text-black dark:text-zinc-50">
-          הרשמה
+          Register
         </h1>
+        
+        {success && (
+          <div className="mb-4 rounded-lg bg-green-100 p-4 text-sm text-green-700 dark:bg-green-900 dark:text-green-300">
+            Registration successful! Redirecting to login...
+          </div>
+        )}
         
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              אימייל
+              Email
             </label>
             <input
               type="email"
@@ -63,7 +98,7 @@ export default function RegisterPage() {
 
           <div>
             <label className="block mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              סיסמה
+              Password
             </label>
             <input
               type="password"
@@ -77,7 +112,7 @@ export default function RegisterPage() {
 
           <div>
             <label className="block mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              אימות סיסמה
+              Confirm Password
             </label>
             <input
               type="password"
@@ -100,18 +135,18 @@ export default function RegisterPage() {
             disabled={loading}
             className="w-full rounded-lg bg-black px-4 py-2 font-medium text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
           >
-            {loading ? "נרשם..." : "הירשם"}
+            {loading ? "Registering..." : "Register"}
           </button>
         </form>
 
         <div className="mt-6 text-center">
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            כבר יש לך חשבון?{" "}
+            Already have an account?{" "}
             <Link 
               href="/login"
               className="font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
             >
-              התחבר
+              Login
             </Link>
           </p>
         </div>
