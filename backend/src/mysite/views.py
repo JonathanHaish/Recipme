@@ -36,6 +36,11 @@ def call_internal_api_view(location,info):
 
 
 def callAPI(request):
+    """
+    Docstring for callAPI
+    
+    call to the API
+    """
     info = request.GET if request.method == 'GET' else request.POST
     location = request.path
     data = info.get("data")
