@@ -13,8 +13,8 @@ def call_internal_api_view(location,info):
 
     the options are:
     Location:
-        1) /api/food/ ->  get list of options(types) of the food: [{"id":fdc_id,"name":description,"category":category,"description":brand,"fat_str":fat_str}...]
-        2) /api/food/nutritions/ -> get the nutritions of the food:
+        1) api/ingredients/ ->  get list of options(types) of the food: [{"id":fdc_id,"name":description,"category":category,"description":brand,"fat_str":fat_str}...]
+        2) api/ingredients/nutritions/ -> get the nutritions of the food:
         {
             "Protein": "protein",
             "Total lipid (fat)": "fat",
