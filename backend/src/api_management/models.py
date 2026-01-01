@@ -281,7 +281,7 @@ class FoodDataCentralAPI(HTTP2Client):
         result = self.request("GET", f"food/{food_id}", params=params)
         if not result:
             return {}
-        #cache.set(cache_key,options,self.FOOD_TTL)
+        
         nutritions = self.extract_key_nutrients(result.data)
         cache.set(cache_key,nutritions,self.FOOD_TTL)    
         return nutritions
