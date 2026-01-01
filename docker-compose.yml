@@ -1,3 +1,61 @@
+# services:
+#   frontend:
+#     container_name: frontend-next
+#     build:
+#       context: ./frontend
+#       dockerfile: Dockerfile
+#     ports:
+#       - 3000:3000
+#     volumes:
+#       - ./frontend/src:/app
+#     environment:
+#       - NODE_ENV=development
+#   backend:
+#     container_name: backend-django
+#     build:
+#       context: ./backend
+#       dockerfile: Dockerfile
+#     ports:
+#       - 8000:8000
+#     volumes:
+#       - ./backend/src:/app
+#     depends_on:
+#       - postgres
+#     environment:
+#       - POSTGRES_DB=recipme
+#       - POSTGRES_USER=postgres
+#       - POSTGRES_PASSWORD=postgres
+#       - POSTGRES_HOST=postgres
+#       - POSTGRES_PORT=5432
+#   postgres:
+#     container_name: postgres-db
+#     image: postgres:16
+#     ports:
+#       - 5432:5432
+#     volumes:
+#       - postgres-data:/var/lib/postgresql/data
+#     environment:
+#       - POSTGRES_USER=postgres
+#       - POSTGRES_PASSWORD=postgres
+#       - POSTGRES_DB=recipme
+#   pgadmin:
+#     container_name: pgadmin
+#     image: dpage/pgadmin4:latest
+#     ports:
+#       - 5050:80
+#     volumes:
+#       - pgadmin-data:/var/lib/pgadmin
+#     environment:
+#       - PGADMIN_DEFAULT_EMAIL=admin@recipme.com
+#       - PGADMIN_DEFAULT_PASSWORD=admin
+#     depends_on:
+#       - postgres
+
+# volumes:
+#   postgres-data:
+#   pgadmin-data:
+
+
 services:
   frontend:
     container_name: frontend-next
@@ -11,6 +69,7 @@ services:
       - /app/node_modules
     environment:
       - NODE_ENV=development
+
   backend:
     container_name: backend-django
     build:
@@ -22,12 +81,17 @@ services:
       - ./backend/src:/app
     depends_on:
       - postgres
+      - redis        # ← added dependency
     environment:
       - POSTGRES_DB=recipme
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
+      - REDIS_HOST=redis        # ← backend will connect to redis
+      - REDIS_PORT=6379
+      - API_KEY=OsxzJJV049cMYt2e1XU6lEQP7o864NKbxkvNAGWv
+
   postgres:
     container_name: postgres-db
     image: postgres:16
@@ -39,6 +103,7 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=recipme
+
   pgadmin:
     container_name: pgadmin
     image: dpage/pgadmin4:latest
@@ -62,6 +127,20 @@ services:
       - MP_SMTP_AUTH_ACCEPT_ANY=1
       - MP_SMTP_AUTH_ALLOW_INSECURE=1
 
+  # -------------------------------------------------
+  # NEW: Redis service
+  # -------------------------------------------------
+  redis:
+    container_name: redis-cache
+    image: redis:7
+    ports:
+      - 6379:6379     # expose only if you want local access
+    volumes:
+      - redis-data:/data
+    restart: always
+
 volumes:
   postgres-data:
   pgadmin-data:
+  redis-data:        # ← persistent storage for redis
+       

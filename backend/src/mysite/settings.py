@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt.token_blacklist',
     'auth_api',
+    'api_management',
 ]
 
 MIDDLEWARE = [
@@ -190,3 +191,19 @@ DEFAULT_FROM_EMAIL = 'noreply@recipme.com'
 
 # Frontend URL for password reset links
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
+API_KEY = os.environ.get("API_KEY","")
+
+
+
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": f"redis://{os.environ.get('REDIS_HOST')}:6379/1",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        }
+    }
+}
+
+
+INTERNAL_API_SECRET_KEY=os.environ.get("INTERNAL_API_SECRET_KEY")
