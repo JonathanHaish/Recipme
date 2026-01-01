@@ -1,5 +1,5 @@
 from django.http import JsonResponse
-from django.http import JsonResponse,Http404
+from django.http import JsonResponse,Http404,HttpResponseForbidden
 from mysite import settings
 from api_management.views import api_data_view
 import json
@@ -35,9 +35,9 @@ def call_internal_api_view(location,info):
 
 
 
-def testAPI(request):
+def callAPI(request):
     info = request.GET if request.method == 'GET' else request.POST
-    location = info.get("path")
+    location = request.path
     data = info.get("data")
     return call_internal_api_view(location,data)
 

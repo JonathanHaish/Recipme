@@ -58,10 +58,10 @@ def api_data_view(location,key,info):
     """
     
     if key == settings.API_KEY:
-        if location == "/api/food/":
+        if location == "/api/ingredients/":
             return get_foods(info)
         
-        if location == "/api/food/nutritions/":
+        if location == "/api/ingredients/nutritions/":
             return get_food_nutritions(info)
         
         return render_response(status=404,res={})

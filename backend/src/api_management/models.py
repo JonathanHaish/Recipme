@@ -208,24 +208,30 @@ class FoodDataCentralAPI(HTTP2Client):
         :param ingredient_name: name of the ingredient
         :type ingredient_name: str
         """
+       
         params = self._with_key({
             "query": ingredient_name
         })
         
         cache_key = f"fdc_sys:food:name:{ingredient_name}"
         cached = cache.get(cache_key)
-        if cached is not None and cached != '':
+        
+        if cached is not None and cached != '' and cached != []:
            return cached
+        
         result = self.request("GET", "foods/search", params=params)
-        if not result:
+        if not result or result.data == []:
             return []
         
-
+        
         options=[]
         foods = result.data.get("foods", [])
         for food in foods:
             options.append(self.generate_product_tagline(food))
-        cache.set(cache_key,options,self.FOOD_TTL)
+        
+        
+        if options != []:
+            cache.set(cache_key,options,self.FOOD_TTL)
         return options
     
     def extract_key_nutrients(self, food_data: Dict) -> Dict[str, float]:
@@ -279,7 +285,7 @@ class FoodDataCentralAPI(HTTP2Client):
            return cached
         
         result = self.request("GET", f"food/{food_id}", params=params)
-        if not result:
+        if not result or result.data == None:
             return {}
         
         nutritions = self.extract_key_nutrients(result.data)
