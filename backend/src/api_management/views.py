@@ -40,8 +40,8 @@ def get_food_nutritions(food_id: str):
     """
     Docstring for get_food_nutritions
     
-    :param food_id: Description
-    :type food_id: str
+    :param food_id: food id
+    
     """
     if not isinstance(food_id,str):
          return render_response(502,{"error":"The name of the food is string"})   
