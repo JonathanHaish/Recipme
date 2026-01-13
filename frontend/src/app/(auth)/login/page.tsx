@@ -47,7 +47,7 @@ export default function LoginPage() {
   // Show loading while checking auth
   if (authLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white">
+      <div className="flex flex-1 items-center justify-center bg-white">
         <div className="text-center">
           <p className="text-gray-600">Loading...</p>
         </div>
@@ -61,7 +61,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-white">
+    <div className="flex flex-1 items-center justify-center bg-white">
       <div className="w-full max-w-md rounded-lg bg-white p-8 shadow-lg border border-gray-200">
         <div className="mb-6 flex items-center justify-center gap-3">
           <ChefHat className="w-10 h-10 text-black" />

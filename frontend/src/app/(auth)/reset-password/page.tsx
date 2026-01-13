@@ -64,7 +64,7 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-black">
+    <div className="flex flex-1 items-center justify-center bg-zinc-50 dark:bg-black">
       <div className="w-full max-w-md rounded-lg bg-white dark:bg-zinc-900 p-8 shadow-lg">
         <h1 className="mb-6 text-3xl font-bold text-center text-black dark:text-zinc-50">
           Reset Password
