@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { Search, Heart, Bookmark, ChefHat, LogOut, User } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { ingredientsAPI, type Ingredient, type NutritionData } from "@/lib/api";
+import {RecipeConfig} from "@/app/recipe_configure/recipe_configure"
 
-export default function RecipesPage() {
+export default function App() {
   const [favorites, setFavorites] = useState<Record<number, boolean>>({});
   const { user, loading, logout } = useAuth();
   const router = useRouter();
@@ -114,12 +115,15 @@ export default function RecipesPage() {
             <button className="px-4 py-2 border border-black rounded hover:bg-gray-100 text-black">
               Admin points
             </button>
-            <button className="px-4 py-2 border border-black rounded hover:bg-gray-100 text-black">
+            {/* <button className="px-4 py-2 border border-black rounded hover:bg-gray-100 text-black">
               Add Recipe
-            </button>
+            </button> */}
+            <RecipeConfig/>
+            
             <button className="px-4 py-2 border border-black rounded hover:bg-gray-100 text-black">
               Filters
             </button>
+            
             
             {/* User Info & Logout */}
             <div className="flex items-center gap-2 pl-3 border-l-2 border-gray-300">
@@ -273,6 +277,7 @@ export default function RecipesPage() {
           </div>
         )}
       </div>
+       
 
       {/* Nutrition Modal */}
       {isModalOpen && (

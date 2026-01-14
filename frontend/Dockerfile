@@ -7,7 +7,10 @@ WORKDIR /app
 
 COPY ./src/package.json .
 
+RUN rm -rf node_modules package-lock.json
+
 RUN npm install --legacy-peer-deps
+
 
 COPY ./src .
 
