@@ -7,10 +7,11 @@ WORKDIR /app
 
 COPY ./src/package.json .
 
-RUN npm install --legacy-peer-deps
+# RUN npm install --legacy-peer-deps
 
 COPY ./src .
 
 EXPOSE 3000
 
-CMD ["npm", "run", "dev"]
+CMD sh
+# CMD ["npm", "run", "dev"]

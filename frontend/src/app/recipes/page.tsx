@@ -1,5 +1,9 @@
 "use client";
 
+//alice note, the two lines below are new
+import { MyRecipesTable } from "@/app/my-recipes-app/MyRecipesTable";
+import { MyRecipesModal } from "@/app/my-recipes-app/MyRecipesModal";
+import { MOCK_DJANGO_RECIPES } from "@/types/my_recipes";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Heart, Bookmark, ChefHat, LogOut, User } from "lucide-react";
@@ -7,6 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { ingredientsAPI, type Ingredient, type NutritionData } from "@/lib/api";
 
 export default function RecipesPage() {
+  const [isMyRecipesOpen, setIsMyRecipesOpen] = useState(false); //alice's function for modal
   const [favorites, setFavorites] = useState<Record<number, boolean>>({});
   const { user, loading, logout } = useAuth();
   const router = useRouter();
@@ -18,6 +23,12 @@ export default function RecipesPage() {
   const [nutritionData, setNutritionData] = useState<NutritionData | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loadingNutrition, setLoadingNutrition] = useState(false);
+ // by alice
+  const myRecipeRows = MOCK_DJANGO_RECIPES.map((r) => ({
+    name: r.name,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+  }));
 
   const toggleFavorite = (id: number) => {
     setFavorites((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -101,7 +112,7 @@ export default function RecipesPage() {
       !!nutritionData?.sugars;
 
 
-  return (
+  return ( 
     <div className="min-h-screen bg-gray-50 p-6" dir="ltr">
       {/* Header */}
       <div className="max-w-5xl mx-auto mb-8">
@@ -120,7 +131,11 @@ export default function RecipesPage() {
             <button className="px-4 py-2 border border-black rounded hover:bg-gray-100 text-black">
               Filters
             </button>
-            
+            <button
+               onClick={() => setIsMyRecipesOpen(true)}
+                     className="px-4 py-2 border border-black rounded hover:bg-gray-100 text-black">
+              My Recipes
+                    </button> 
             {/* User Info & Logout */}
             <div className="flex items-center gap-2 pl-3 border-l-2 border-gray-300">
               {loading ? (
@@ -371,7 +386,12 @@ export default function RecipesPage() {
             </div>
           </div>
       )}
-
+<MyRecipesModal
+  isOpen={isMyRecipesOpen}
+  onClose={() => setIsMyRecipesOpen(false)}
+  rows={myRecipeRows}
+/>
     </div>
   );
 }
+// added by alice above ^
