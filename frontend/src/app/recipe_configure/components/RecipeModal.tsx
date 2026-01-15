@@ -5,6 +5,7 @@ import { Input } from "@/app/recipe_configure/components/ui/input";
 import { Label } from "@/app/recipe_configure/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/recipe_configure/components/ui/select";
 import { X, Plus, Upload, Trash2, Image as ImageIcon } from "lucide-react";
+import {FoodSearch} from "./searchIngredients"
 
 interface Ingredient {
   id: string;

@@ -33,6 +33,22 @@ export  function RecipeConfig() {
   //   setIsModalOpen(true);
   // };
 
+  // const handleToggleLike = (recipeId: string) => {
+  //   setRecipes(
+  //     recipes.map((recipe) =>
+  //       recipe.id === recipeId ? { ...recipe, isLiked: !recipe.isLiked } : recipe
+  //     )
+  //   );
+  // };
+
+  // const handleToggleSave = (recipeId: string) => {
+  //   setRecipes(
+  //     recipes.map((recipe) =>
+  //       recipe.id === recipeId ? { ...recipe, isSaved: !recipe.isSaved } : recipe
+  //     )
+  //   );
+  // };
+
   const handleSaveRecipe = (recipe: Recipe) => {
     if (modalMode === "create") {
       const newRecipe = {
@@ -49,21 +65,7 @@ export  function RecipeConfig() {
     }
   };
 
-  // const handleToggleLike = (recipeId: string) => {
-  //   setRecipes(
-  //     recipes.map((recipe) =>
-  //       recipe.id === recipeId ? { ...recipe, isLiked: !recipe.isLiked } : recipe
-  //     )
-  //   );
-  // };
-
-  // const handleToggleSave = (recipeId: string) => {
-  //   setRecipes(
-  //     recipes.map((recipe) =>
-  //       recipe.id === recipeId ? { ...recipe, isSaved: !recipe.isSaved } : recipe
-  //     )
-  //   );
-  // };
+  
 
   return (
     <div>
