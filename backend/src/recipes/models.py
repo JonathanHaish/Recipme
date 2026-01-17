@@ -41,7 +41,7 @@ class Recipes(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    instructions = models.TextField()
+    instructions = models.TextField(blank=True, default='')
 
     # הגדרת יחס רבים לרבים עם Ingredients דרך טבלת הצומת recipe_ingredients
     recipe_ingredients_map = models.ManyToManyField(
@@ -78,6 +78,7 @@ class RecipeIngredients(models.Model):
     quantity = models.DecimalField(max_digits=10, decimal_places=4)
     unit = models.CharField(max_length=50, null=True, blank=True)
     note = models.CharField(max_length=100, null=True, blank=True)
+    fdc_id = models.IntegerField(null=True, blank=True, help_text="Food Data Central API ID for nutrition calculation")
 
     class Meta:
         db_table = 'recipe_ingredients'

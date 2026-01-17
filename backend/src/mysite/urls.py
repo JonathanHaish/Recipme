@@ -23,17 +23,8 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('example/', views.example_view, name='example'),
     path('api/auth/', include('auth_api.urls')),
-    # path('api/ingredients/nutritions/', views.callAPI, name='ingredients_nutritions'),
-    # path('api/ingredients/', views.callAPI, name='ingredients'),
     path("ingredients/",include("api_management.urls")),
+    path("api/ingredients/",include("api_management.urls")),
     path('recipes/',include("recipes.urls"))
 ]
 
-"""
-לחיפוש רכיבים:
-GET /api/food-lookup/?location=/api/ingredients/&info=בננה
-
-לקבלת ערכים תזונתיים:
-GET /api/food-lookup/?location=/api/ingredients/nutritions/&info=123456
-
-"""

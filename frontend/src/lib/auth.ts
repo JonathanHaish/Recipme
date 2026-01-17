@@ -35,8 +35,10 @@ class APIClient {
     url: string,
     options: RequestInit = {}
   ): Promise<T> {
+    // Don't set Content-Type for requests without body (like DELETE)
+    const hasBody = options.body !== undefined && options.body !== null;
     const headers: HeadersInit = {
-      'Content-Type': 'application/json',
+      ...(hasBody && { 'Content-Type': 'application/json' }),
       ...options.headers,
     };
 
@@ -106,7 +108,20 @@ class APIClient {
       throw new Error(error.error || error.message || 'Request failed');
     }
 
-    return response.json();
+    // Handle empty responses (e.g., 204 No Content for DELETE requests)
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      // No content or not JSON, return undefined for void responses
+      return undefined as T;
+    }
+
+    // Check if response has content before parsing
+    const text = await response.text();
+    if (!text || text.trim().length === 0) {
+      return undefined as T;
+    }
+
+    return JSON.parse(text) as T;
   }
 
   private async refreshAccessToken(): Promise<void> {
@@ -127,6 +142,9 @@ class APIClient {
 }
 
 const apiClient = new APIClient();
+
+// Export apiClient for use in other API modules
+export { apiClient };
 
 // Auth API functions
 export const authAPI = {

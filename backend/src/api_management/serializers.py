@@ -11,6 +11,6 @@ class FoodTaglineSerializer(serializers.Serializer):
 class IngredientSearchResponseSerializer(serializers.Serializer):
     """סריליאזר עבור מעטפת התגובה מה-API (הצלחה/שגיאה)"""
     success = serializers.BooleanField()
-    data = FoodTaglineSerializer(many=True, required=False)
+    res = FoodTaglineSerializer(many=True, required=False)  # Changed from 'data' to 'res' to match frontend expectations
     error = serializers.CharField(required=False, allow_null=True)
     status = serializers.IntegerField(required=False)

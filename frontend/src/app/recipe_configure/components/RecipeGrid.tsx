@@ -15,16 +15,20 @@ interface Recipe {
 interface RecipeGridProps {
   recipes: Recipe[];
   onEdit: (recipe: Recipe) => void;
+  onViewDetails: (recipe: Recipe) => void;
   onToggleLike: (recipeId: string) => void;
   onToggleSave: (recipeId: string) => void;
+  isAdmin?: boolean;
   searchQuery?: string;
 }
 
 export function RecipeGrid({ 
   recipes, 
   onEdit, 
+  onViewDetails,
   onToggleLike, 
   onToggleSave,
+  isAdmin = false,
   searchQuery = ""
 }: RecipeGridProps) {
   const filteredRecipes = recipes.filter(recipe =>
@@ -55,14 +59,16 @@ export function RecipeGrid({
       <h2 className="text-xl font-bold mb-6 text-black">
         My Recipes ({filteredRecipes.length})
       </h2>
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-3 gap-4">
         {filteredRecipes.map((recipe) => (
           <RecipeCard
             key={recipe.id}
             recipe={recipe}
             onEdit={onEdit}
+            onViewDetails={onViewDetails}
             onToggleLike={onToggleLike}
             onToggleSave={onToggleSave}
+            isAdmin={isAdmin}
           />
         ))}
       </div>

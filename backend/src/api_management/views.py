@@ -72,6 +72,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.permissions import AllowAny
 from django.conf import settings
 from .models import FoodDataCentralAPI
 from .serializers import  IngredientSearchResponseSerializer
@@ -80,22 +81,38 @@ from .premissions import IsInternalApp
 food_api = FoodDataCentralAPI(api_key=settings.API_KEY)
 
 class FoodIngredientView(APIView):
-    permission_classes = [IsInternalApp] 
+    # Use AllowAny for frontend access, or IsInternalApp for internal API calls
+    permission_classes = [AllowAny]  # Change to [IsInternalApp] if you want to require API key 
     def get(self, request):
         location = request.query_params.get('location')
         info = request.query_params.get('info')
+        # Support frontend format: ?data=...
+        data = request.query_params.get('data')
 
+        # If 'data' parameter is provided (frontend format), use it as 'info'
+        if data and not info:
+            info = data
+            # Set location based on the URL path
+            if 'nutritions' in request.path:
+                location = "/api/ingredients/nutritions/"
+            else:
+                location = "/api/ingredients/"
+        
+       
         # בדיקה בסיסית של פרמטרים
         if not info:
             return Response({
                 "status": 400,
                 "success": False,
-                "error": "Missing info parameter"
+                "error": "Missing info or data parameter"
             }, status=status.HTTP_400_BAD_REQUEST)
 
         # לוגיקת חיפוש רכיבים
-        if location == "/api/ingredients/":
+        if location == "/api/ingredients/" or (not location and 'nutritions' not in request.path):
             results = food_api.search_ingredients(info)
+            
+            # Debug: print results to see format
+           
             
             # בניית האובייקט עבור הסריליאזר העוטף
             response_data = {
@@ -104,11 +121,13 @@ class FoodIngredientView(APIView):
                 'res': results  # רשימת ה-taglines מה-API שלך
             }
             
-            serializer = IngredientSearchResponseSerializer(response_data)
+            # For output serialization, pass as instance and access .data directly
+            serializer = IngredientSearchResponseSerializer(instance=response_data)
+           
             return Response(serializer.data)
 
         # לוגיקת ערכים תזונתיים
-        elif location == "/api/ingredients/nutritions/":
+        elif location == "/api/ingredients/nutritions/" or 'nutritions' in request.path:
             if not info.isdigit():
                 return Response({
                     "status": 400, "success": False, "error": "Invalid ID"

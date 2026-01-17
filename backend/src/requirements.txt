@@ -9,3 +9,4 @@ httpx[http2]
 django-redis==5.4.0
 requests
 tzdata
+django-cors-headers

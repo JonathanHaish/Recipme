@@ -6,19 +6,20 @@ import { Label } from "@/app/recipe_configure/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/recipe_configure/components/ui/select";
 import { X, Plus, Upload, Trash2, Image as ImageIcon } from "lucide-react";
 import {FoodSearch} from "./searchIngredients"
+import { recipesAPI } from "@/lib/api";
 
 interface Ingredient {
   id: string;
   name: string;
   amount: string;
+  fdc_id?: number; // Food Data Central API ID
 }
 
 interface Recipe {
   id?: string;
   name: string;
   type: string;
-  dateCreated?: string;
-  dateUpdated?: string;
+  instructions?: string;
   image?: string;
   ingredients: Ingredient[];
 }
@@ -35,16 +36,46 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
   const [formData, setFormData] = useState<Recipe>({
     name: recipe?.name || "",
     type: recipe?.type || "",
-    dateCreated: recipe?.dateCreated || new Date().toISOString().split('T')[0],
-    dateUpdated: new Date().toISOString().split('T')[0],
+    instructions: recipe?.instructions || "",
     image: recipe?.image || "",
     ingredients: recipe?.ingredients || [],
   });
 
   const [newIngredientName, setNewIngredientName] = useState("");
   const [newIngredientAmount, setNewIngredientAmount] = useState("");
-  const [searchIngredient, setSearchIngredient] = useState("");
+  const [isIngredientValid, setIsIngredientValid] = useState(false);
+  const [selectedIngredientData, setSelectedIngredientData] = useState<any>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Reset form when modal opens in create mode
+  useEffect(() => {
+    if (isOpen && mode === "create" && !recipe) {
+      // Reset form to initial state when opening in create mode
+      setFormData({
+        name: "",
+        type: "",
+        instructions: "",
+        image: "",
+        ingredients: [],
+      });
+      setNewIngredientName("");
+      setNewIngredientAmount("");
+      setIsIngredientValid(false);
+      setSelectedIngredientData(null);
+      setSubmitError(null);
+    } else if (isOpen && recipe) {
+      // Load recipe data when in edit mode
+      setFormData({
+        name: recipe.name || "",
+        type: recipe.type || "",
+        instructions: recipe.instructions || "",
+        image: recipe.image || "",
+        ingredients: recipe.ingredients || [],
+      });
+    }
+  }, [isOpen, mode, recipe]);
 
   // Lock body scroll when modal is open
   useEffect(() => {
@@ -58,16 +89,39 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
     };
   }, [isOpen]);
 
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      type: "",
+      instructions: "",
+      image: "",
+      ingredients: [],
+    });
+    setNewIngredientName("");
+    setNewIngredientAmount("");
+    setIsIngredientValid(false);
+    setSubmitError(null);
+    // Reset file input if it exists
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const handleInputChange = (field: keyof Recipe, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleAddIngredient = () => {
+    if (!isIngredientValid) {
+      alert("Please select an ingredient from the search results");
+      return;
+    }
     if (newIngredientName.trim() && newIngredientAmount.trim()) {
       const newIngredient: Ingredient = {
         id: Date.now().toString(),
         name: newIngredientName,
         amount: newIngredientAmount,
+        fdc_id: selectedIngredientData?.id, // Store the fdc_id from selected ingredient
       };
       setFormData((prev) => ({
         ...prev,
@@ -75,6 +129,8 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
       }));
       setNewIngredientName("");
       setNewIngredientAmount("");
+      setIsIngredientValid(false);
+      setSelectedIngredientData(null);
     }
   };
 
@@ -96,18 +152,74 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
     }
   };
 
-  const handleSubmit = () => {
-    onSave(formData);
-    onClose();
+  const handleSubmit = async () => {
+    // Validate required fields
+    if (!formData.name.trim()) {
+      setSubmitError("Recipe name is required");
+      return;
+    }
+
+    if (!formData.type) {
+      setSubmitError("Recipe type is required");
+      return;
+    }
+
+    if (formData.ingredients.length === 0) {
+      setSubmitError("Please add at least one ingredient");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      if (mode === "create") {
+        // Create new recipe via API
+        const createdRecipe = await recipesAPI.createRecipe(formData);
+        
+        // Transform backend response to frontend format for the callback
+        const frontendRecipe: Recipe = {
+          id: createdRecipe.id?.toString(),
+          name: createdRecipe.title,
+          type: createdRecipe.description,
+          instructions: createdRecipe.instructions,
+          ingredients: formData.ingredients,
+          image: formData.image,
+        };
+        
+        // Call the parent callback to update local state
+        onSave(frontendRecipe);
+        // Reset form after successful creation
+        resetForm();
+        onClose();
+      } else {
+        // Update existing recipe
+        if (recipe?.id) {
+          const updatedRecipe = await recipesAPI.updateRecipe(recipe.id, formData);
+          const frontendRecipe: Recipe = {
+            id: updatedRecipe.id?.toString(),
+            name: updatedRecipe.title,
+            type: updatedRecipe.description,
+            instructions: updatedRecipe.instructions,
+            ingredients: formData.ingredients,
+            image: formData.image,
+          };
+          onSave(frontendRecipe);
+          onClose();
+        }
+      }
+    } catch (error) {
+      console.error("Error saving recipe:", error);
+      setSubmitError(error instanceof Error ? error.message : "Failed to save recipe. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleCancel = () => {
     onClose();
   };
 
-  const filteredIngredients = formData.ingredients.filter((ing) =>
-    ing.name.toLowerCase().includes(searchIngredient.toLowerCase())
-  );
 
   if (!isOpen) return null;
 
@@ -152,41 +264,30 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
             <div className="space-y-2">
               <label className="text-sm font-medium text-black">Recipe Type</label>
               <Select value={formData.type} onValueChange={(value) => handleInputChange("type", value)}>
-                <SelectTrigger className="border-black">
+                <SelectTrigger className="border-black bg-white">
                   <SelectValue placeholder="Select recipe type" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="breakfast">Breakfast</SelectItem>
-                  <SelectItem value="lunch">Lunch</SelectItem>
-                  <SelectItem value="dinner">Dinner</SelectItem>
-                  <SelectItem value="dessert">Dessert</SelectItem>
-                  <SelectItem value="snack">Snack</SelectItem>
-                  <SelectItem value="appetizer">Appetizer</SelectItem>
+                <SelectContent className="z-[10001]">
+                  <SelectItem value="Vegan">Vegan</SelectItem>
+                  <SelectItem value="Vegetarian">Vegetarian</SelectItem>
+                  <SelectItem value="Lactose-free">Lactose-free</SelectItem>
+                  <SelectItem value="Flour-free">Flour-free</SelectItem>
+                  <SelectItem value="Full of protein">Full of protein</SelectItem>
+                  <SelectItem value="Full of vegetables">Full of vegetables</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Dates */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-black">Date Created</label>
-                <input
-                  type="date"
-                  value={formData.dateCreated}
-                  onChange={(e) => handleInputChange("dateCreated", e.target.value)}
-                  disabled={mode === "edit"}
-                  className="w-full px-3 py-2 border border-black rounded text-black disabled:bg-gray-100"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-black">Date Updated</label>
-                <input
-                  type="date"
-                  value={formData.dateUpdated}
-                  onChange={(e) => handleInputChange("dateUpdated", e.target.value)}
-                  className="w-full px-3 py-2 border border-black rounded text-black"
-                />
-              </div>
+            {/* Instructions */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-black">Instructions</label>
+              <textarea
+                value={formData.instructions || ""}
+                onChange={(e) => handleInputChange("instructions", e.target.value)}
+                placeholder="Enter recipe instructions..."
+                rows={6}
+                className="w-full px-3 py-2 border border-black rounded text-black resize-y"
+              />
             </div>
 
             {/* Image Upload */}
@@ -235,26 +336,26 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
             {/* Ingredients Section */}
             <div className="space-y-3">
               <label className="text-sm font-medium text-black">Ingredients</label>
-              
-              {/* Search Ingredients */}
-              <input
-                value={searchIngredient}
-                onChange={(e) => setSearchIngredient(e.target.value)}
-                placeholder="Search ingredients..."
-                className="w-full px-3 py-2 border border-black rounded text-black"
-              />
 
               {/* Add New Ingredient */}
               <div className="flex gap-2">
-                <input
-                  value={newIngredientName}
-                  onChange={(e) => setNewIngredientName(e.target.value)}
-                  placeholder="Ingredient name"
-                  className="flex-1 px-3 py-2 border border-black rounded text-black"
-                />
+                <div className="flex-1">
+                  <FoodSearch
+                    value={newIngredientName}
+                    onChange={(value) => setNewIngredientName(value)}
+                    onSelect={(ingredient) => {
+                      setNewIngredientName(ingredient.name);
+                      setSelectedIngredientData(ingredient); // Store full ingredient object
+                      setIsIngredientValid(true);
+                    }}
+                    onValidSelection={(isValid) => setIsIngredientValid(isValid)}
+                    placeholder="Search and select ingredient name"
+                    className="w-full"
+                  />
+                </div>
                 <input
                   value={newIngredientAmount}
-                  onChange={(e) => setNewIngredientAmount(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewIngredientAmount(e.target.value)}
                   placeholder="Amount"
                   className="w-32 px-3 py-2 border border-black rounded text-black"
                 />
@@ -270,12 +371,12 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
 
               {/* Ingredients List */}
               <div className="space-y-2 max-h-64 overflow-y-auto border-2 border-black rounded-lg p-3">
-                {filteredIngredients.length === 0 ? (
+                {formData.ingredients.length === 0 ? (
                   <p className="text-sm text-gray-500 text-center py-4">
                     No ingredients added yet
                   </p>
                 ) : (
-                  filteredIngredients.map((ingredient) => (
+                  formData.ingredients.map((ingredient) => (
                     <div
                       key={ingredient.id}
                       className="flex items-center justify-between p-3 border border-black rounded-lg"
@@ -299,21 +400,35 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
           </div>
         </div>
 
+        {/* Error Message */}
+        {submitError && (
+          <div className="px-5 py-2 border-t-2 border-black">
+            <div className="text-red-600 text-sm bg-red-50 border border-red-200 rounded p-2">
+              {submitError}
+            </div>
+          </div>
+        )}
+
         {/* Modal Footer */}
         <div className="flex justify-end gap-3 border-t-2 border-black px-5 py-3">
           <button
             type="button"
             onClick={handleCancel}
-            className="px-5 py-2 border border-black rounded hover:bg-gray-100 text-black font-medium"
+            disabled={isSubmitting}
+            className="px-5 py-2 border border-black rounded hover:bg-gray-100 text-black font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={handleSubmit}
-            className="px-5 py-2 bg-black text-white rounded hover:bg-gray-800 font-medium"
+            disabled={isSubmitting}
+            className="px-5 py-2 bg-black text-white rounded hover:bg-gray-800 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {mode === "create" ? "Create Recipe" : "Update Recipe"}
+            {isSubmitting 
+              ? (mode === "create" ? "Creating..." : "Updating...") 
+              : (mode === "create" ? "Create Recipe" : "Update Recipe")
+            }
           </button>
         </div>
       </div>
