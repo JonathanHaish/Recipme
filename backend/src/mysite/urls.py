@@ -23,6 +23,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('example/', views.example_view, name='example'),
     path('api/auth/', include('auth_api.urls')),
+    path('api/contact/', include('contact_api.urls')),
     path('api/ingredients/nutritions/', views.callAPI, name='ingredients_nutritions'),
     path('api/ingredients/', views.callAPI, name='ingredients'),
 ]
