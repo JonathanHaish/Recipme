@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { ChefHat, CheckCircle, AlertCircle } from "lucide-react";
 import { authAPI } from "@/lib/auth";
 
 export default function ResetPasswordPage() {
@@ -17,29 +18,34 @@ export default function ResetPasswordPage() {
   const uid = searchParams.get("uid");
   const token = searchParams.get("token");
 
+  const isInvalidLink = !uid || !token;
+
   useEffect(() => {
-    if (!uid || !token) {
-      setError("Invalid or missing reset link parameters");
+    if (isInvalidLink) {
+      setError("Invalid or missing reset link. Please request a new password reset.");
     }
-  }, [uid, token]);
+  }, [isInvalidLink]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!uid || !token) {
+    if (isInvalidLink) {
       setError("Invalid reset link");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("Passwords don't match");
+      return;
+    }
+
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters");
       return;
     }
 
     setLoading(true);
     setError("");
-
-    // Check that passwords match
-    if (password !== confirmPassword) {
-      setError("Passwords don't match");
-      setLoading(false);
-      return;
-    }
 
     try {
       await authAPI.resetPassword({
@@ -48,48 +54,83 @@ export default function ResetPasswordPage() {
         password,
         password2: confirmPassword,
       });
-      console.log("Password reset successful");
       setSuccess(true);
 
       // Redirect to login after 2 seconds
       setTimeout(() => {
         router.push("/login");
       }, 2000);
-    } catch (err: any) {
-      console.error("Password reset error:", err);
-      setError(err.message || "Failed to reset password. The link may have expired.");
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to reset password. The link may have expired.";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex flex-1 items-center justify-center bg-zinc-50 dark:bg-black">
-      <div className="w-full max-w-md rounded-lg bg-white dark:bg-zinc-900 p-8 shadow-lg">
-        <h1 className="mb-6 text-3xl font-bold text-center text-black dark:text-zinc-50">
+    <div className="flex flex-1 items-center justify-center bg-white">
+      <div className="w-full max-w-md rounded-lg bg-white p-8 shadow-lg border border-gray-200">
+        {/* Logo Header */}
+        <div className="mb-6 flex items-center justify-center gap-3">
+          <ChefHat className="w-10 h-10 text-black" />
+          <h1 className="text-3xl font-bold text-black">Recipme</h1>
+        </div>
+
+        <h2 className="mb-6 text-2xl font-semibold text-center text-gray-700">
           Reset Password
-        </h1>
+        </h2>
 
         {success ? (
           <div className="space-y-4">
-            <div className="rounded-lg bg-green-100 p-4 text-sm text-green-700 dark:bg-green-900 dark:text-green-300">
-              Password has been reset successfully! Redirecting to login...
+            <div className="flex flex-col items-center py-4">
+              <CheckCircle className="w-16 h-16 text-green-600 mb-4" />
+              <p className="text-lg font-medium text-black text-center">
+                Password Reset Successful!
+              </p>
+              <p className="text-sm text-gray-600 text-center mt-2">
+                Redirecting to login...
+              </p>
             </div>
             <Link
               href="/login"
-              className="block w-full text-center rounded-lg bg-black px-4 py-2 font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
+              className="block w-full text-center rounded-lg bg-black px-4 py-2 font-medium text-white transition-colors hover:bg-gray-800"
             >
               Go to Login
             </Link>
           </div>
+        ) : isInvalidLink ? (
+          <div className="space-y-4">
+            <div className="flex flex-col items-center py-4">
+              <AlertCircle className="w-16 h-16 text-red-500 mb-4" />
+              <p className="text-lg font-medium text-black text-center">
+                Invalid Reset Link
+              </p>
+              <p className="text-sm text-gray-600 text-center mt-2">
+                This password reset link is invalid or has expired.
+              </p>
+            </div>
+            <Link
+              href="/forgot-password"
+              className="block w-full text-center rounded-lg bg-black px-4 py-2 font-medium text-white transition-colors hover:bg-gray-800"
+            >
+              Request New Reset Link
+            </Link>
+            <Link
+              href="/login"
+              className="block w-full text-center rounded-lg border-2 border-black px-4 py-2 font-medium text-black transition-colors hover:bg-gray-100"
+            >
+              Back to Login
+            </Link>
+          </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
-            <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
+            <p className="text-sm text-gray-600 mb-4">
               Enter your new password below.
             </p>
 
             <div>
-              <label className="block mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              <label className="block mb-2 text-sm font-medium text-gray-700">
                 New Password
               </label>
               <input
@@ -97,13 +138,14 @@ export default function ResetPasswordPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-2 text-black focus:border-blue-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-white"
+                minLength={8}
+                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-black focus:border-black focus:outline-none focus:ring-1 focus:ring-black"
                 placeholder="••••••••"
               />
             </div>
 
             <div>
-              <label className="block mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              <label className="block mb-2 text-sm font-medium text-gray-700">
                 Confirm New Password
               </label>
               <input
@@ -111,37 +153,39 @@ export default function ResetPasswordPage() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
-                className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-2 text-black focus:border-blue-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-white"
+                minLength={8}
+                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-black focus:border-black focus:outline-none focus:ring-1 focus:ring-black"
                 placeholder="••••••••"
               />
             </div>
 
             {error && (
-              <div className="rounded-lg bg-red-100 p-3 text-sm text-red-700 dark:bg-red-900 dark:text-red-300">
+              <div className="rounded-lg bg-red-100 p-3 text-sm text-red-700">
                 {error}
               </div>
             )}
 
             <button
               type="submit"
-              disabled={loading || !uid || !token}
-              className="w-full rounded-lg bg-black px-4 py-2 font-medium text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
+              disabled={loading}
+              className="w-full rounded-lg bg-black px-4 py-2 font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? "Resetting..." : "Reset Password"}
             </button>
           </form>
         )}
 
-        <div className="mt-6 text-center">
-          <Link
-            href="/login"
-            className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-          >
-            Back to Login
-          </Link>
-        </div>
+        {!success && !isInvalidLink && (
+          <div className="mt-6 text-center">
+            <Link
+              href="/login"
+              className="text-sm text-blue-600 hover:text-blue-800"
+            >
+              Back to Login
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );
 }
-

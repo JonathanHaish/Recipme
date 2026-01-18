@@ -7,10 +7,10 @@ from rest_framework_simplejwt.exceptions import TokenError
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
-from django.core.mail import send_mail
 from django.conf import settings
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
+from mysite.email_templates import send_password_reset_email
 from .serializers import (
     RegisterSerializer, 
     UserSerializer, 
@@ -189,35 +189,11 @@ class ForgotPasswordView(APIView):
             uid = urlsafe_base64_encode(force_bytes(user.pk))
             
             # Build reset link
-            # In production, replace with your frontend domain
             frontend_url = settings.FRONTEND_URL if hasattr(settings, 'FRONTEND_URL') else 'http://localhost:3000'
             reset_link = f"{frontend_url}/reset-password?uid={uid}&token={token}"
             
-            # Send email
-            subject = 'Password Reset Request - Recipme'
-            message = f"""
-Hello,
-
-You requested to reset your password for Recipme.
-
-Click the link below to reset your password:
-{reset_link}
-
-This link will expire in 24 hours.
-
-If you didn't request this, please ignore this email.
-
-Best regards,
-Recipme Team
-            """
-            
-            send_mail(
-                subject,
-                message,
-                settings.DEFAULT_FROM_EMAIL,
-                [email],
-                fail_silently=False,
-            )
+            # Send branded email
+            send_password_reset_email(email, reset_link)
             
         except User.DoesNotExist:
             # Don't reveal if email exists for security

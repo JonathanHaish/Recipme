@@ -1,8 +1,7 @@
 from django.contrib import admin
-from django.core.mail import send_mail
-from django.conf import settings
 from django.utils import timezone
 from .models import ContactMessage
+from mysite.email_templates import send_contact_response_email
 
 
 @admin.register(ContactMessage)
@@ -68,44 +67,13 @@ class ContactMessageAdmin(admin.ModelAdmin):
             self._send_response_email(obj)
     
     def _send_response_email(self, obj):
-        """Send email notification to user with admin's response"""
-        subject = f"Re: {obj.subject} - Recipme Support"
-        
-        message = f"""Hello,
-
-Thank you for contacting Recipme Support.
-
-Your original message:
----
-Subject: {obj.subject}
-
-{obj.message}
----
-
-Our response:
----
-{obj.admin_response}
----
-
-If you have any further questions, feel free to reach out again.
-
-Best regards,
-The Recipme Team
-"""
-        
-        try:
-            send_mail(
-                subject=subject,
-                message=message,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[obj.user.email],
-                fail_silently=False,
-            )
-        except Exception as e:
-            # Log the error but don't prevent the save
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"Failed to send response email to {obj.user.email}: {e}")
+        """Send branded email notification to user with admin's response"""
+        send_contact_response_email(
+            to_email=obj.user.email,
+            original_subject=obj.subject,
+            original_message=obj.message,
+            admin_response=obj.admin_response
+        )
     
     def has_add_permission(self, request):
         """Disable adding messages through admin - users submit via the frontend"""
