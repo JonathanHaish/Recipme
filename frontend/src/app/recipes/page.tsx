@@ -67,6 +67,9 @@ export default function App() {
       isLiked: recipe.is_liked || false,
       isSaved: recipe.is_saved || false,
       likesCount: recipe.likes_count || 0,
+      authorUsername: recipe.author_username || '',
+      authorFirstName: recipe.author_first_name || '',
+      authorLastName: recipe.author_last_name || '',
     }));
   };
 
@@ -126,22 +129,32 @@ export default function App() {
     setNutritionData(null);
   };
 
-  // Fetch all recipes on mount
+  // Fetch personalized recipes on mount (ordered by user's goals and diet)
   useEffect(() => {
     const fetchRecipes = async () => {
       if (!user) return; // Only fetch if user is logged in
       
       setLoadingRecipes(true);
       try {
-        const backendRecipes = await recipesAPI.getMyRecipes();
+        // Use personalized endpoint that orders recipes based on user's profile
+        const backendRecipes = await recipesAPI.getPersonalizedRecipes();
         // Transform backend format to frontend format
         const frontendRecipes = transformBackendToFrontend(backendRecipes);
         setAllRecipes(frontendRecipes);
         setRecipes(frontendRecipes);
       } catch (error) {
-        console.error("Error fetching recipes:", error);
-        setAllRecipes([]);
-        setRecipes([]);
+        console.error("Error fetching personalized recipes:", error);
+        // Fallback to regular recipes if personalized fails
+        try {
+          const backendRecipes = await recipesAPI.getMyRecipes();
+          const frontendRecipes = transformBackendToFrontend(backendRecipes);
+          setAllRecipes(frontendRecipes);
+          setRecipes(frontendRecipes);
+        } catch (fallbackError) {
+          console.error("Error fetching recipes:", fallbackError);
+          setAllRecipes([]);
+          setRecipes([]);
+        }
       } finally {
         setLoadingRecipes(false);
       }

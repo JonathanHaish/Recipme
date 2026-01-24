@@ -11,6 +11,9 @@ interface Recipe {
   isLiked?: boolean;
   isSaved?: boolean;
   likesCount?: number;
+  authorUsername?: string;
+  authorFirstName?: string;
+  authorLastName?: string;
 }
 
 interface RecipeCardProps {
@@ -85,7 +88,16 @@ export function RecipeCard({ recipe, onEdit, onViewDetails, onToggleLike, onTogg
       {/* Name/Title */}
       <div className="px-2 py-2 border-b border-black">
         <h3 className="text-base font-bold text-black">{recipe.name}</h3>
-        <p className="text-xs text-gray-600 mt-1">
+        {recipe.authorUsername && (
+          <p className="text-xs text-gray-600 mt-1">
+            <span className="font-medium">By:</span> {
+              recipe.authorFirstName && recipe.authorLastName
+                ? `${recipe.authorFirstName} ${recipe.authorLastName}`
+                : recipe.authorUsername
+            }
+          </p>
+        )}
+        <p className="text-xs text-gray-600 mt-0.5">
           <span className="font-medium">Ingredients:</span> {recipe.ingredients.length}
         </p>
         <p className="text-xs text-gray-600 mt-0.5">

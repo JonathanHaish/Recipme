@@ -107,6 +107,9 @@ interface BackendRecipe {
   likes_count?: number;
   is_liked?: boolean;
   is_saved?: boolean;
+  author_username?: string;
+  author_first_name?: string;
+  author_last_name?: string;
 }
 
 interface FrontendRecipe {
@@ -172,7 +175,7 @@ export const recipesAPI = {
       const backendRecipe: any = {
         title: recipe.name,
         description: recipe.type || recipe.name,
-        status: 'draft',
+        status: 'published', // Set to published so recipes appear on home page
         instructions: recipe.instructions || '',
         recipe_ingredients: recipe.ingredients.map((ing) => {
           const ingredientData: any = {
@@ -225,7 +228,7 @@ export const recipesAPI = {
       const backendRecipe: any = {
         title: recipe.name,
         description: recipe.type || recipe.name,
-        status: 'draft',
+        status: 'published', // Set to published so recipes appear on home page
         instructions: recipe.instructions || '',
         recipe_ingredients: recipe.ingredients.map((ing) => ({
           ingredient: {
@@ -263,6 +266,19 @@ export const recipesAPI = {
       return await apiClient.request<BackendRecipe[]>(`${API_URL}/recipes/recipes/my_recipes/`);
     } catch (error) {
       console.error('Error fetching recipes:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get personalized recipes ordered by user's profile (goals and diet)
+   * @returns Array of recipes ordered by user preferences
+   */
+  getPersonalizedRecipes: async (): Promise<BackendRecipe[]> => {
+    try {
+      return await apiClient.request<BackendRecipe[]>(`${API_URL}/recipes/recipes/personalized/`);
+    } catch (error) {
+      console.error('Error fetching personalized recipes:', error);
       throw error;
     }
   },
