@@ -363,7 +363,7 @@ export default function App() {
 
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6" dir="ltr">
+    <div className="flex-1 bg-gray-50 p-6" dir="ltr">
       {/* Header */}
       <div className="max-w-5xl mx-auto mb-8">
         <div className="flex items-center justify-between mb-6">

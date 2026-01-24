@@ -30,9 +30,8 @@ COPY ./src/requirements.txt .
 
 RUN pip install -r requirements.txt
 
-COPY ./src .
+COPY --chown=django:django ./src .
 
 EXPOSE 8000
 
-# Use exec form with sh -c to run multiple commands
-CMD ["sh", "-c", "python3 manage.py makemigrations && python3 manage.py migrate && python3 manage.py runserver 0.0.0.0:8000"]
+ENTRYPOINT ["./entrypoint.sh"]

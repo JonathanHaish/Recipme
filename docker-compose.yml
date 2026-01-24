@@ -36,6 +36,10 @@ services:
       - REDIS_HOST=redis        # ← backend will connect to redis
       - REDIS_PORT=6379
       - API_KEY=OsxzJJV049cMYt2e1XU6lEQP7o864NKbxkvNAGWv
+      # Superuser auto-creation
+      - DJANGO_SUPERUSER_USERNAME=admin
+      - DJANGO_SUPERUSER_EMAIL=admin@recipme.com
+      - DJANGO_SUPERUSER_PASSWORD=admin123  # Change in production!
 
   postgres:
     container_name: postgres-db

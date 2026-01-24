@@ -21,7 +21,7 @@ export default function HomePage() {
   }, [isAuthenticated, loading, router]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-black">
+    <div className="flex flex-1 items-center justify-center bg-zinc-50 dark:bg-black">
       <div className="text-center">
         <p className="text-zinc-600 dark:text-zinc-400">
           {loading ? "Loading..." : "Redirecting..."}
