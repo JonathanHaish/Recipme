@@ -20,6 +20,8 @@ interface RecipeGridProps {
   onToggleSave: (recipeId: string) => void;
   isAdmin?: boolean;
   searchQuery?: string;
+  /** Override grid title (e.g. "Search results") */
+  title?: string;
 }
 
 export function RecipeGrid({ 
@@ -29,12 +31,15 @@ export function RecipeGrid({
   onToggleLike, 
   onToggleSave,
   isAdmin = false,
-  searchQuery = ""
+  searchQuery = "",
+  title = "My Recipes",
 }: RecipeGridProps) {
-  const filteredRecipes = recipes.filter(recipe =>
-    recipe.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    recipe.type.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredRecipes = searchQuery
+    ? recipes.filter(recipe =>
+        recipe.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        recipe.type.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : recipes;
 
   if (recipes.length === 0) {
     return (
@@ -48,7 +53,7 @@ export function RecipeGrid({
   if (filteredRecipes.length === 0) {
     return (
       <div className="text-center py-12">
-        <p className="text-lg text-gray-600 mb-2">No recipes found for "{searchQuery}"</p>
+        <p className="text-lg text-gray-600 mb-2">No recipes found for &quot;{searchQuery}&quot;</p>
         <p className="text-sm text-gray-500">Try searching for something else</p>
       </div>
     );
@@ -57,7 +62,7 @@ export function RecipeGrid({
   return (
     <div>
       <h2 className="text-xl font-bold mb-6 text-black">
-        My Recipes ({filteredRecipes.length})
+        {title} ({filteredRecipes.length})
       </h2>
       <div className="grid grid-cols-3 gap-4">
         {filteredRecipes.map((recipe) => (

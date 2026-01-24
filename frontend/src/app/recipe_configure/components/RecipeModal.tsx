@@ -24,15 +24,20 @@ interface Recipe {
   ingredients: Ingredient[];
 }
 
+/** Pre-filled ingredients when opening create modal (e.g. from search) */
+export type InitialIngredient = { id: string; name: string; amount?: string; fdc_id?: number };
+
 interface RecipeModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (recipe: Recipe) => void;
   recipe?: Recipe | null;
   mode: "create" | "edit";
+  /** When mode is "create", pre-fill ingredients (e.g. from search page) */
+  initialIngredients?: InitialIngredient[];
 }
 
-export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeModalProps) {
+export function RecipeModal({ isOpen, onClose, onSave, recipe, mode, initialIngredients }: RecipeModalProps) {
   const [formData, setFormData] = useState<Recipe>({
     name: recipe?.name || "",
     type: recipe?.type || "",
@@ -49,16 +54,21 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
   const [submitError, setSubmitError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Reset form when modal opens in create mode
+  // Reset form when modal opens in create mode; pre-fill ingredients if initialIngredients provided
   useEffect(() => {
     if (isOpen && mode === "create" && !recipe) {
-      // Reset form to initial state when opening in create mode
+      const prefill = (initialIngredients ?? []).map((ing, idx) => ({
+        id: ing.id || `prefill-${idx}-${Date.now()}`,
+        name: ing.name,
+        amount: ing.amount ?? "100",
+        fdc_id: ing.fdc_id,
+      }));
       setFormData({
         name: "",
         type: "",
         instructions: "",
         image: "",
-        ingredients: [],
+        ingredients: prefill,
       });
       setNewIngredientName("");
       setNewIngredientAmount("");
@@ -66,7 +76,6 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
       setSelectedIngredientData(null);
       setSubmitError(null);
     } else if (isOpen && recipe) {
-      // Load recipe data when in edit mode
       setFormData({
         name: recipe.name || "",
         type: recipe.type || "",
@@ -75,7 +84,7 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
         ingredients: recipe.ingredients || [],
       });
     }
-  }, [isOpen, mode, recipe]);
+  }, [isOpen, mode, recipe, initialIngredients]);
 
   // Lock body scroll when modal is open
   useEffect(() => {

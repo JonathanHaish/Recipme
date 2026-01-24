@@ -65,20 +65,23 @@ class RecipeViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(user_recipes, many=True)
         return Response(serializer.data)
     
-    # Search recipes by title or description
+    # Search recipes by title, description, instructions, or ingredient name
     @action(detail=False, methods=['get'])
     def search(self, request):
         query = request.query_params.get('q', '').strip()
         if not query:
             return Response([])
         
-        # Search in title and description
-        recipes = Recipes.objects.filter(
-            author=request.user
-        ).filter(
-            Q(title__icontains=query) | Q(description__icontains=query)
+        recipes = (
+            Recipes.objects.filter(author=request.user)
+            .filter(
+                Q(title__icontains=query)
+                | Q(description__icontains=query)
+                | Q(instructions__icontains=query)
+                | Q(recipe_ingredients__ingredient__name__icontains=query)
+            )
+            .distinct()
         )
-        
         serializer = self.get_serializer(recipes, many=True)
         return Response(serializer.data)
     
