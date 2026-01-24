@@ -56,7 +56,7 @@ export default function App() {
       name: recipe.title,
       type: recipe.description,
       instructions: recipe.instructions,
-      image: "",
+      image: recipe.image_url || "",
       dateCreated: recipe.created_at ? new Date(recipe.created_at).toISOString().split('T')[0] : undefined,
       dateUpdated: recipe.updated_at ? new Date(recipe.updated_at).toISOString().split('T')[0] : undefined,
       ingredients: recipe.ingredients?.map((ing, idx) => ({
@@ -398,10 +398,14 @@ export default function App() {
                 <div className="text-sm text-gray-600">Loading...</div>
               ) : user ? (
                 <>
-                  <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded">
+                  <button
+                    onClick={() => router.push("/profile")}
+                    className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+                    title="View Profile"
+                  >
                     <User className="w-4 h-4 text-black" />
                     <span className="text-sm font-medium text-black">{user.email}</span>
-                  </div>
+                  </button>
                   <button
                     onClick={handleLogout}
                     className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded hover:bg-gray-800 transition-colors"

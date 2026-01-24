@@ -12,15 +12,28 @@ class RecipeViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def create(self, request, *args, **kwargs):
-        # Log the incoming data for debugging
-        print(f"Received recipe data: {request.data}")
-        serializer = self.get_serializer(data=request.data)
+        # Now we receive JSON with image_url, not FormData with image file
+        data = request.data
+        serializer = self.get_serializer(data=data, context={'request': request})
         if not serializer.is_valid():
             print(f"Serializer errors: {serializer.errors}")
+            from rest_framework import status
+            from rest_framework.response import Response
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         return super().create(request, *args, **kwargs)
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
+
+    def update(self, request, *args, **kwargs):
+        # Now we receive JSON with image_url, not FormData with image file
+        data = request.data
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=data, partial=partial, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response(serializer.data)
 
     def destroy(self, request, *args, **kwargs):
         """

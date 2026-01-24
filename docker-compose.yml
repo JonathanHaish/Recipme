@@ -12,6 +12,7 @@ services:
     volumes:
       - ./frontend/src:/app
       - /app/node_modules
+      - ./frontend/uploads:/app/public/uploads
     environment:
       - NODE_ENV=development
 

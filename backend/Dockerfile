@@ -15,6 +15,8 @@ RUN apt-get update && apt-get install -y \
     python3-dev \
     build-essential \
     libpq-dev \
+    libjpeg-dev \
+    zlib1g-dev \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # create django user

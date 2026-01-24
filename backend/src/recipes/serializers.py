@@ -34,7 +34,7 @@ class RecipeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Recipes
         fields = ['id', 'title', 'description', 'prep_time_minutes', 'cook_time_minutes', 
-                  'servings', 'status', 'instructions', 'ingredients', 'recipe_ingredients',
+                  'servings', 'status', 'instructions', 'image_url', 'ingredients', 'recipe_ingredients',
                   'created_at', 'updated_at', 'likes_count', 'is_liked', 'is_saved']
     
     def get_likes_count(self, obj):

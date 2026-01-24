@@ -48,6 +48,7 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
 
   // Reset form when modal opens in create mode
   useEffect(() => {
@@ -101,6 +102,7 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
     setNewIngredientAmount("");
     setIsIngredientValid(false);
     setSubmitError(null);
+    setImageFile(null);
     // Reset file input if it exists
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -144,6 +146,7 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setImageFile(file); // Store the File object for upload
       const reader = new FileReader();
       reader.onloadend = () => {
         setFormData((prev) => ({ ...prev, image: reader.result as string }));
@@ -174,8 +177,8 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
 
     try {
       if (mode === "create") {
-        // Create new recipe via API
-        const createdRecipe = await recipesAPI.createRecipe(formData);
+        // Create new recipe via API with image file
+        const createdRecipe = await recipesAPI.createRecipe(formData, imageFile || undefined);
         
         // Transform backend response to frontend format for the callback
         const frontendRecipe: Recipe = {
@@ -184,27 +187,29 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
           type: createdRecipe.description,
           instructions: createdRecipe.instructions,
           ingredients: formData.ingredients,
-          image: formData.image,
+          image: createdRecipe.image_url || formData.image,
         };
         
         // Call the parent callback to update local state
         onSave(frontendRecipe);
         // Reset form after successful creation
         resetForm();
+        setImageFile(null);
         onClose();
       } else {
         // Update existing recipe
         if (recipe?.id) {
-          const updatedRecipe = await recipesAPI.updateRecipe(recipe.id, formData);
+          const updatedRecipe = await recipesAPI.updateRecipe(recipe.id, formData, imageFile || undefined);
           const frontendRecipe: Recipe = {
             id: updatedRecipe.id?.toString(),
             name: updatedRecipe.title,
             type: updatedRecipe.description,
             instructions: updatedRecipe.instructions,
             ingredients: formData.ingredients,
-            image: formData.image,
+            image: updatedRecipe.image_url || formData.image,
           };
           onSave(frontendRecipe);
+          setImageFile(null);
           onClose();
         }
       }

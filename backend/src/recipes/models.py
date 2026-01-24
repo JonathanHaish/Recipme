@@ -42,6 +42,14 @@ class Recipes(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     instructions = models.TextField(blank=True, default='')
+    
+    # Recipe image URL (stored in frontend container)
+    image_url = models.URLField(
+        max_length=500,
+        null=True,
+        blank=True,
+        help_text="URL to recipe image stored in frontend container"
+    )
 
     # הגדרת יחס רבים לרבים עם Ingredients דרך טבלת הצומת recipe_ingredients
     recipe_ingredients_map = models.ManyToManyField(

@@ -35,10 +35,11 @@ class APIClient {
     url: string,
     options: RequestInit = {}
   ): Promise<T> {
-    // Don't set Content-Type for requests without body (like DELETE)
+    // Don't set Content-Type for requests without body (like DELETE) or FormData
     const hasBody = options.body !== undefined && options.body !== null;
+    const isFormData = options.body instanceof FormData;
     const headers: HeadersInit = {
-      ...(hasBody && { 'Content-Type': 'application/json' }),
+      ...(hasBody && !isFormData && { 'Content-Type': 'application/json' }),
       ...options.headers,
     };
 
