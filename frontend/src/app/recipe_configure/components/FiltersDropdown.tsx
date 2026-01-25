@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import {
   DropdownMenu,
@@ -9,40 +10,57 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
   DropdownMenuSeparator,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
 } from "./ui/dropdown-menu";
-
-const RECIPE_TYPES = [
-  "Vegan",
-  "Vegetarian",
-  "Lactose-free",
-  "Flour-free",
-  "Full of protein",
-  "Full of vegetables",
-];
+import { tagsAPI, Tag } from "@/lib/api";
 
 interface FiltersDropdownProps {
-  checkedTypes: string[];
+  checkedTagIds: number[];
   checkedNutrition: boolean;
   checkedTopLiked: boolean;
   checkedSaved: boolean;
-  onTypeToggle: (type: string) => void;
+  filterMatchMode: 'any' | 'all';
+  onTagToggle: (tagId: number) => void;
   onNutritionToggle: () => void;
   onTopLikedToggle: () => void;
   onSavedToggle: () => void;
+  onFilterMatchModeChange: (mode: 'any' | 'all') => void;
   onClearFilters: () => void;
 }
 
 export function FiltersDropdown({
-  checkedTypes,
+  checkedTagIds,
   checkedNutrition,
   checkedTopLiked,
   checkedSaved,
-  onTypeToggle,
+  filterMatchMode,
+  onTagToggle,
   onNutritionToggle,
   onTopLikedToggle,
   onSavedToggle,
+  onFilterMatchModeChange,
   onClearFilters,
 }: FiltersDropdownProps) {
+  const [availableTags, setAvailableTags] = useState<Tag[]>([]);
+  const [isLoadingTags, setIsLoadingTags] = useState(false);
+
+  // Load available tags on mount
+  useEffect(() => {
+    const loadTags = async () => {
+      setIsLoadingTags(true);
+      try {
+        const tags = await tagsAPI.getAllTags();
+        setAvailableTags(tags);
+      } catch (error) {
+        console.error('Error loading tags:', error);
+      } finally {
+        setIsLoadingTags(false);
+      }
+    };
+    loadTags();
+  }, []);
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -53,19 +71,47 @@ export function FiltersDropdown({
       <DropdownMenuContent className="bg-white border border-black text-black min-w-[220px]" align="start">
         <DropdownMenuSub>
           <DropdownMenuSubTrigger className="cursor-pointer focus:bg-gray-100 text-black data-[state=open]:bg-gray-100">
-            Type
+            Tags {checkedTagIds.length > 0 && `(${checkedTagIds.length})`}
           </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent className="bg-white border border-black text-black">
-            {RECIPE_TYPES.map((type) => (
-              <DropdownMenuCheckboxItem
-                key={type}
-                checked={checkedTypes.includes(type)}
-                onCheckedChange={() => onTypeToggle(type)}
-                className="cursor-pointer focus:bg-gray-100 text-black"
-              >
-                {type}
-              </DropdownMenuCheckboxItem>
-            ))}
+          <DropdownMenuSubContent className="bg-white border border-black text-black max-h-[300px] overflow-y-auto">
+            {isLoadingTags ? (
+              <DropdownMenuItem disabled className="text-gray-500">
+                Loading tags...
+              </DropdownMenuItem>
+            ) : availableTags.length === 0 ? (
+              <DropdownMenuItem disabled className="text-gray-500">
+                No tags available
+              </DropdownMenuItem>
+            ) : (
+              <>
+                {availableTags.map((tag) => (
+                  <DropdownMenuCheckboxItem
+                    key={tag.id}
+                    checked={checkedTagIds.includes(tag.id)}
+                    onCheckedChange={() => onTagToggle(tag.id)}
+                    className="cursor-pointer focus:bg-gray-100 text-black"
+                  >
+                    {tag.name}
+                  </DropdownMenuCheckboxItem>
+                ))}
+                {checkedTagIds.length > 0 && (
+                  <>
+                    <DropdownMenuSeparator className="bg-gray-300" />
+                    <div className="px-2 py-2">
+                      <p className="text-xs font-medium text-gray-600 mb-1">Match mode:</p>
+                      <DropdownMenuRadioGroup value={filterMatchMode} onValueChange={(value) => onFilterMatchModeChange(value as 'any' | 'all')}>
+                        <DropdownMenuRadioItem value="any" className="cursor-pointer text-xs">
+                          Any tag (OR)
+                        </DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="all" className="cursor-pointer text-xs">
+                          All tags (AND)
+                        </DropdownMenuRadioItem>
+                      </DropdownMenuRadioGroup>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
           </DropdownMenuSubContent>
         </DropdownMenuSub>
         

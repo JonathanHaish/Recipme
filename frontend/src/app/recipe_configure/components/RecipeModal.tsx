@@ -6,7 +6,7 @@ import { Label } from "@/app/recipe_configure/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/recipe_configure/components/ui/select";
 import { X, Plus, Upload, Trash2, Image as ImageIcon } from "lucide-react";
 import {FoodSearch} from "./searchIngredients"
-import { recipesAPI } from "@/lib/api";
+import { recipesAPI, tagsAPI, Tag } from "@/lib/api";
 
 interface Ingredient {
   id: string;
@@ -22,6 +22,7 @@ interface Recipe {
   instructions?: string;
   image?: string;
   ingredients: Ingredient[];
+  tags?: Tag[];
 }
 
 interface RecipeModalProps {
@@ -39,8 +40,11 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
     instructions: recipe?.instructions || "",
     image: recipe?.image || "",
     ingredients: recipe?.ingredients || [],
+    tags: recipe?.tags || [],
   });
 
+  const [availableTags, setAvailableTags] = useState<Tag[]>([]);
+  const [isLoadingTags, setIsLoadingTags] = useState(false);
   const [newIngredientName, setNewIngredientName] = useState("");
   const [newIngredientAmount, setNewIngredientAmount] = useState("");
   const [isIngredientValid, setIsIngredientValid] = useState(false);
@@ -48,6 +52,22 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load available tags on mount
+  useEffect(() => {
+    const loadTags = async () => {
+      setIsLoadingTags(true);
+      try {
+        const tags = await tagsAPI.getAllTags();
+        setAvailableTags(tags);
+      } catch (error) {
+        console.error('Error loading tags:', error);
+      } finally {
+        setIsLoadingTags(false);
+      }
+    };
+    loadTags();
+  }, []);
 
   // Reset form when modal opens in create mode
   useEffect(() => {
@@ -59,6 +79,7 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
         instructions: "",
         image: "",
         ingredients: [],
+        tags: [],
       });
       setNewIngredientName("");
       setNewIngredientAmount("");
@@ -73,6 +94,7 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
         instructions: recipe.instructions || "",
         image: recipe.image || "",
         ingredients: recipe.ingredients || [],
+        tags: recipe.tags || [],
       });
     }
   }, [isOpen, mode, recipe]);
@@ -96,6 +118,7 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
       instructions: "",
       image: "",
       ingredients: [],
+      tags: [],
     });
     setNewIngredientName("");
     setNewIngredientAmount("");
@@ -109,6 +132,30 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
 
   const handleInputChange = (field: keyof Recipe, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleTagSelect = (tag: Tag) => {
+    const isSelected = formData.tags?.some(t => t.id === tag.id);
+    if (isSelected) {
+      // Remove tag
+      setFormData(prev => ({
+        ...prev,
+        tags: prev.tags?.filter(t => t.id !== tag.id) || []
+      }));
+    } else {
+      // Add tag
+      setFormData(prev => ({
+        ...prev,
+        tags: [...(prev.tags || []), tag]
+      }));
+    }
+  };
+
+  const handleTagRemove = (tagId: number) => {
+    setFormData(prev => ({
+      ...prev,
+      tags: prev.tags?.filter(t => t.id !== tagId) || []
+    }));
   };
 
   const handleAddIngredient = () => {
@@ -159,11 +206,6 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
       return;
     }
 
-    if (!formData.type) {
-      setSubmitError("Recipe type is required");
-      return;
-    }
-
     if (formData.ingredients.length === 0) {
       setSubmitError("Please add at least one ingredient");
       return;
@@ -173,9 +215,15 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
     setSubmitError(null);
 
     try {
+      // Set type field from tags for backward compatibility
+      const recipeData = {
+        ...formData,
+        type: formData.tags?.map(t => t.name).join(', ') || ''
+      };
+
       if (mode === "create") {
         // Create new recipe via API
-        const createdRecipe = await recipesAPI.createRecipe(formData);
+        const createdRecipe = await recipesAPI.createRecipe(recipeData);
         
         // Transform backend response to frontend format for the callback
         const frontendRecipe: Recipe = {
@@ -195,7 +243,7 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
       } else {
         // Update existing recipe
         if (recipe?.id) {
-          const updatedRecipe = await recipesAPI.updateRecipe(recipe.id, formData);
+          const updatedRecipe = await recipesAPI.updateRecipe(recipe.id, recipeData);
           const frontendRecipe: Recipe = {
             id: updatedRecipe.id?.toString(),
             name: updatedRecipe.title,
@@ -260,22 +308,67 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
               />
             </div>
 
-            {/* Recipe Type */}
+            {/* Recipe Tags */}
             <div className="space-y-2">
-              <label className="text-sm font-medium text-black">Recipe Type</label>
-              <Select value={formData.type} onValueChange={(value) => handleInputChange("type", value)}>
-                <SelectTrigger className="border-black bg-white">
-                  <SelectValue placeholder="Select recipe type" />
-                </SelectTrigger>
-                <SelectContent className="z-[10001]">
-                  <SelectItem value="Vegan">Vegan</SelectItem>
-                  <SelectItem value="Vegetarian">Vegetarian</SelectItem>
-                  <SelectItem value="Lactose-free">Lactose-free</SelectItem>
-                  <SelectItem value="Flour-free">Flour-free</SelectItem>
-                  <SelectItem value="Full of protein">Full of protein</SelectItem>
-                  <SelectItem value="Full of vegetables">Full of vegetables</SelectItem>
-                </SelectContent>
-              </Select>
+              <label className="text-sm font-medium text-black">Recipe Tags (Optional)</label>
+
+              {/* Selected Tags */}
+              {formData.tags && formData.tags.length > 0 && (
+                <div className="flex flex-wrap gap-2 p-3 border-2 border-black rounded-lg bg-gray-50">
+                  {formData.tags.map((tag) => (
+                    <span
+                      key={tag.id}
+                      className="inline-flex items-center gap-1 px-3 py-1 bg-black text-white rounded-full text-sm font-medium"
+                    >
+                      {tag.name}
+                      <button
+                        type="button"
+                        onClick={() => handleTagRemove(tag.id)}
+                        className="hover:bg-gray-800 rounded-full p-0.5"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Tag Limit Warning */}
+              {formData.tags && formData.tags.length > 5 && (
+                <div className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded p-2">
+                  ⚠️ You have selected more than 5 tags. Consider using fewer tags for better organization.
+                </div>
+              )}
+
+              {/* Available Tags */}
+              <div>
+                <p className="text-xs text-gray-600 mb-2">Available tags:</p>
+                <div className="flex flex-wrap gap-2">
+                  {isLoadingTags ? (
+                    <p className="text-sm text-gray-500">Loading tags...</p>
+                  ) : availableTags.length === 0 ? (
+                    <p className="text-sm text-gray-500">No tags available</p>
+                  ) : (
+                    availableTags.map((tag) => {
+                      const isSelected = formData.tags?.some(t => t.id === tag.id);
+                      return (
+                        <button
+                          key={tag.id}
+                          type="button"
+                          onClick={() => handleTagSelect(tag)}
+                          className={`px-3 py-1 rounded-full text-sm font-medium border-2 transition-colors ${
+                            isSelected
+                              ? 'bg-black text-white border-black'
+                              : 'bg-white text-black border-black hover:bg-gray-100'
+                          }`}
+                        >
+                          {tag.name}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Instructions */}

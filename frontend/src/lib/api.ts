@@ -36,6 +36,21 @@ interface NutritionResponse {
   res: NutritionData;
 }
 
+export const tagsAPI = {
+  /**
+   * Get all active tags
+   * @returns Array of tags
+   */
+  getAllTags: async (): Promise<Tag[]> => {
+    try {
+      return await apiClient.request<Tag[]>(`${API_URL}/recipes/tags/`);
+    } catch (error) {
+      console.error('Error fetching tags:', error);
+      throw error;
+    }
+  },
+};
+
 export const ingredientsAPI = {
   /**
    * Search for ingredients by food name
@@ -84,6 +99,13 @@ export const ingredientsAPI = {
   },
 };
 
+export interface Tag {
+  id: number;
+  name: string;
+  slug: string;
+  description?: string;
+}
+
 interface RecipeIngredient {
   ingredient_name: string;
   quantity: string;
@@ -101,6 +123,7 @@ interface BackendRecipe {
   status: string;
   instructions: string;
   ingredients: RecipeIngredient[];
+  tags?: Tag[];
   created_at?: string;
   updated_at?: string;
   likes_count?: number;
@@ -120,6 +143,7 @@ interface FrontendRecipe {
     amount: string;
     fdc_id?: number;
   }>;
+  tags?: Tag[];
 }
 
 export const recipesAPI = {
@@ -148,6 +172,11 @@ export const recipesAPI = {
           return ingredientData;
         }),
       };
+
+      // Add tag_ids if tags are provided
+      if (recipe.tags && recipe.tags.length > 0) {
+        backendRecipe.tag_ids = recipe.tags.map(tag => tag.id);
+      }
 
       // Debug: log what we're sending
       console.log('Sending recipe data:', JSON.stringify(backendRecipe, null, 2));
@@ -190,6 +219,11 @@ export const recipesAPI = {
         })),
       };
 
+      // Add tag_ids if tags are provided
+      if (recipe.tags && recipe.tags.length > 0) {
+        backendRecipe.tag_ids = recipe.tags.map(tag => tag.id);
+      }
+
       // Use apiClient for authenticated requests
       return await apiClient.request<BackendRecipe>(`${API_URL}/recipes/recipes/${recipeId}/`, {
         method: 'PUT',
@@ -231,16 +265,22 @@ export const recipesAPI = {
   },
 
   /**
-   * Filter recipes by type
-   * @param type - Recipe type/description
+   * Filter recipes by tags
+   * @param tagIds - Array of tag IDs
+   * @param matchMode - "any" (OR logic) or "all" (AND logic)
    * @returns Array of filtered recipes
    */
-  filterByType: async (type: string): Promise<BackendRecipe[]> => {
+  filterByTags: async (tagIds: number[], matchMode: 'any' | 'all' = 'any'): Promise<BackendRecipe[]> => {
     try {
-      const encodedType = encodeURIComponent(type);
-      return await apiClient.request<BackendRecipe[]>(`${API_URL}/recipes/recipes/filter_by_type/?type=${encodedType}`);
+      if (tagIds.length === 0) {
+        return [];
+      }
+      const tagIdsStr = tagIds.join(',');
+      return await apiClient.request<BackendRecipe[]>(
+        `${API_URL}/recipes/recipes/filter_by_tags/?tag_ids=${tagIdsStr}&match=${matchMode}`
+      );
     } catch (error) {
-      console.error('Error filtering recipes by type:', error);
+      console.error('Error filtering recipes by tags:', error);
       throw error;
     }
   },
@@ -323,5 +363,5 @@ export const recipesAPI = {
   },
 };
 
-export type { Ingredient, NutritionData, FrontendRecipe, BackendRecipe };
+export type { Ingredient, NutritionData, FrontendRecipe, BackendRecipe, Tag };
 

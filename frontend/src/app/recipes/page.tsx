@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Heart, Bookmark, ChefHat, LogOut, User } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { ingredientsAPI, recipesAPI, type Ingredient, type NutritionData, type BackendRecipe } from "@/lib/api";
+import { ingredientsAPI, recipesAPI, type Ingredient, type NutritionData, type BackendRecipe, type Tag } from "@/lib/api";
 import { RecipeGrid } from "@/app/recipe_configure/components/RecipeGrid";
 import { EditRecipeModal } from "@/app/recipe_configure/components/EditRecipeModal";
 import { RecipeModal } from "@/app/recipe_configure/components/RecipeModal";
@@ -21,7 +21,8 @@ export default function App() {
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
-  const [checkedTypes, setCheckedTypes] = useState<string[]>([]);
+  const [checkedTagIds, setCheckedTagIds] = useState<number[]>([]);
+  const [filterMatchMode, setFilterMatchMode] = useState<'any' | 'all'>('any');
   const [checkedNutrition, setCheckedNutrition] = useState(false);
   const [checkedTopLiked, setCheckedTopLiked] = useState(false);
   const [checkedSaved, setCheckedSaved] = useState(false);
@@ -54,7 +55,7 @@ export default function App() {
     return backendRecipes.map((recipe: BackendRecipe) => ({
       id: recipe.id?.toString(),
       name: recipe.title,
-      type: recipe.description,
+      type: recipe.tags?.map(t => t.name).join(', ') || recipe.description || '',
       instructions: recipe.instructions,
       image: "",
       dateCreated: recipe.created_at ? new Date(recipe.created_at).toISOString().split('T')[0] : undefined,
@@ -64,6 +65,7 @@ export default function App() {
         name: ing.ingredient_name || '',
         amount: ing.quantity || '',
       })) || [],
+      tags: recipe.tags || [],
       isLiked: recipe.is_liked || false,
       isSaved: recipe.is_saved || false,
       likesCount: recipe.likes_count || 0,
@@ -153,16 +155,26 @@ export default function App() {
   // Apply filters whenever filter states change
   useEffect(() => {
     if (!user || hasSearched) return; // Don't apply filters if searching
-    
+
     let filtered = [...allRecipes];
 
-    // Filter by types
-    if (checkedTypes.length > 0) {
-      filtered = filtered.filter(recipe => 
-        checkedTypes.some(type => 
-          recipe.type?.toLowerCase().includes(type.toLowerCase())
-        )
-      );
+    // Filter by tags with OR/AND logic
+    if (checkedTagIds.length > 0) {
+      if (filterMatchMode === 'all') {
+        // AND logic - recipe must have ALL selected tags
+        filtered = filtered.filter(recipe => {
+          if (!recipe.tags || recipe.tags.length === 0) return false;
+          const recipeTagIds = recipe.tags.map((t: Tag) => t.id);
+          return checkedTagIds.every(tagId => recipeTagIds.includes(tagId));
+        });
+      } else {
+        // OR logic (default) - recipe must have ANY of the selected tags
+        filtered = filtered.filter(recipe => {
+          if (!recipe.tags || recipe.tags.length === 0) return false;
+          const recipeTagIds = recipe.tags.map((t: Tag) => t.id);
+          return checkedTagIds.some(tagId => recipeTagIds.includes(tagId));
+        });
+      }
     }
 
     // Filter by top liked
@@ -186,7 +198,7 @@ export default function App() {
     }
 
     setRecipes(filtered);
-  }, [checkedTypes, checkedNutrition, checkedTopLiked, checkedSaved, allRecipes, user, hasSearched]);
+  }, [checkedTagIds, filterMatchMode, checkedNutrition, checkedTopLiked, checkedSaved, allRecipes, user, hasSearched]);
 
   // Update recipes when likes/saves change
   useEffect(() => {
@@ -310,15 +322,19 @@ export default function App() {
     await refreshRecipes();
   };
 
-  const handleTypeToggle = (type: string) => {
+  const handleTagToggle = (tagId: number) => {
     setHasSearched(false);
     setSearchQuery("");
     setSearchResults([]);
-    setCheckedTypes(prev => 
-      prev.includes(type) 
-        ? prev.filter(t => t !== type)
-        : [...prev, type]
+    setCheckedTagIds(prev =>
+      prev.includes(tagId)
+        ? prev.filter(id => id !== tagId)
+        : [...prev, tagId]
     );
+  };
+
+  const handleFilterMatchModeChange = (mode: 'any' | 'all') => {
+    setFilterMatchMode(mode);
   };
 
   const handleNutritionToggle = () => {
@@ -343,7 +359,8 @@ export default function App() {
   };
 
   const handleClearFilters = () => {
-    setCheckedTypes([]);
+    setCheckedTagIds([]);
+    setFilterMatchMode('any');
     setCheckedNutrition(false);
     setCheckedTopLiked(false);
     setCheckedSaved(false);
@@ -380,14 +397,16 @@ export default function App() {
               onEditRecipe={handleOpenEditModal}
             />
             <FiltersDropdown
-              checkedTypes={checkedTypes}
+              checkedTagIds={checkedTagIds}
               checkedNutrition={checkedNutrition}
               checkedTopLiked={checkedTopLiked}
               checkedSaved={checkedSaved}
-              onTypeToggle={handleTypeToggle}
+              filterMatchMode={filterMatchMode}
+              onTagToggle={handleTagToggle}
               onNutritionToggle={handleNutritionToggle}
               onTopLikedToggle={handleTopLikedToggle}
               onSavedToggle={handleSavedToggle}
+              onFilterMatchModeChange={handleFilterMatchModeChange}
               onClearFilters={handleClearFilters}
             />
             

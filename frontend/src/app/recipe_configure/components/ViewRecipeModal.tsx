@@ -1,3 +1,5 @@
+import { Tag } from "@/lib/api";
+
 interface Ingredient {
   id: string;
   name: string;
@@ -11,6 +13,7 @@ interface Recipe {
   instructions?: string;
   image?: string;
   ingredients: Ingredient[];
+  tags?: Tag[];
   dateCreated?: string;
   dateUpdated?: string;
 }
@@ -52,11 +55,22 @@ export function ViewRecipeModal({ isOpen, onClose, recipe }: ViewRecipeModalProp
             <h3 className="text-2xl font-bold text-black">{recipe.name}</h3>
           </div>
 
-          {/* Recipe Type */}
+          {/* Recipe Tags */}
           <div className="mb-4">
-            <span className="inline-block px-3 py-1 border border-black rounded text-sm text-black capitalize">
-              {recipe.type}
-            </span>
+            {recipe.tags && recipe.tags.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {recipe.tags.map((tag) => (
+                  <span
+                    key={tag.id}
+                    className="inline-block px-3 py-1 border border-black rounded text-sm text-black font-medium"
+                  >
+                    {tag.name}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <span className="text-sm text-gray-400 italic">No tags</span>
+            )}
           </div>
 
           {/* Recipe Image */}

@@ -1,4 +1,5 @@
 import { Heart, Bookmark, Edit } from "lucide-react";
+import { Tag } from "@/lib/api";
 
 interface Recipe {
   id?: string;
@@ -8,6 +9,7 @@ interface Recipe {
   dateUpdated?: string;
   image?: string;
   ingredients: Array<{ id: string; name: string; amount: string }>;
+  tags?: Tag[];
   isLiked?: boolean;
   isSaved?: boolean;
   likesCount?: number;
@@ -75,11 +77,22 @@ export function RecipeCard({ recipe, onEdit, onViewDetails, onToggleLike, onTogg
         <div className="h-24 bg-white border-b border-black"></div>
       )}
 
-      {/* Category Tag */}
-      <div className="px-2 py-1.5 border-b border-black">
-        <span className="inline-block px-1.5 py-0.5 border border-black rounded text-xs text-black capitalize">
-          {recipe.type}
-        </span>
+      {/* Tags */}
+      <div className="px-2 py-1.5 border-b border-black min-h-[32px]">
+        {recipe.tags && recipe.tags.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {recipe.tags.map((tag) => (
+              <span
+                key={tag.id}
+                className="inline-block px-1.5 py-0.5 border border-black rounded text-xs text-black"
+              >
+                {tag.name}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <span className="text-xs text-gray-400 italic">No tags</span>
+        )}
       </div>
 
       {/* Name/Title */}

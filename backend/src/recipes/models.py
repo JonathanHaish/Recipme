@@ -2,6 +2,25 @@ from django.db import models
 from django.contrib.auth.models import User # שימוש במודל המשתמש המובנה של Django
 
 # ----------------------------------------------------------------------
+# טבלת recipe_tags (תגיות למתכונים)
+# ----------------------------------------------------------------------
+class Tag(models.Model):
+    name = models.CharField(max_length=50, unique=True)
+    slug = models.SlugField(max_length=50, unique=True)
+    description = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = 'recipe_tags'
+        verbose_name_plural = "Recipe Tags"
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+# ----------------------------------------------------------------------
 # טבלת ingredients (תלות של Recipes)
 # ----------------------------------------------------------------------
 class Ingredients(models.Model):
@@ -42,6 +61,9 @@ class Recipes(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     instructions = models.TextField(blank=True, default='')
+
+    # הגדרת יחס רבים לרבים עם Tags (תגיות)
+    tags = models.ManyToManyField('Tag', related_name='recipes', blank=True)
 
     # הגדרת יחס רבים לרבים עם Ingredients דרך טבלת הצומת recipe_ingredients
     recipe_ingredients_map = models.ManyToManyField(

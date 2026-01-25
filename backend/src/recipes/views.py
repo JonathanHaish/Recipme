@@ -1,9 +1,19 @@
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import viewsets, permissions
-from django.db.models import Q
-from .models import Recipes, RecipeLikes, Favorites
-from .serializers import RecipeSerializer
+from django.db.models import Q, Count
+from .models import Recipes, RecipeLikes, Favorites, Tag
+from .serializers import RecipeSerializer, TagSerializer
+
+
+class TagViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for viewing recipe tags.
+    Only supports listing and retrieving - tags are managed via admin panel.
+    """
+    queryset = Tag.objects.filter(is_active=True).order_by('name')
+    serializer_class = TagSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
 
 class RecipeViewSet(viewsets.ModelViewSet):
@@ -82,14 +92,45 @@ class RecipeViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(recipes, many=True)
         return Response(serializer.data)
     
-    # Filter recipes by type (description)
+    # Filter recipes by tags with OR/AND logic
     @action(detail=False, methods=['get'])
-    def filter_by_type(self, request):
-        recipe_type = request.query_params.get('type', '').strip()
-        if not recipe_type:
+    def filter_by_tags(self, request):
+        """
+        Filter recipes by multiple tags.
+        Query params:
+        - tag_ids: comma-separated list of tag IDs (e.g., "1,2,3")
+        - match: "any" (OR logic, default) or "all" (AND logic)
+
+        Examples:
+        - /recipes/filter_by_tags/?tag_ids=1,2&match=any  # Recipes with tag 1 OR tag 2
+        - /recipes/filter_by_tags/?tag_ids=1,2&match=all  # Recipes with tag 1 AND tag 2
+        """
+        tag_ids_str = request.query_params.get('tag_ids', '').strip()
+        match_mode = request.query_params.get('match', 'any').lower()
+
+        if not tag_ids_str:
             return Response([])
-        
-        recipes = Recipes.objects.filter(author=request.user, description__iexact=recipe_type)
+
+        try:
+            tag_ids = [int(tid.strip()) for tid in tag_ids_str.split(',') if tid.strip()]
+        except ValueError:
+            return Response({'error': 'Invalid tag_ids format'}, status=400)
+
+        if not tag_ids:
+            return Response([])
+
+        # Start with user's recipes
+        recipes = Recipes.objects.filter(author=request.user)
+
+        if match_mode == 'all':
+            # AND logic - recipe must have ALL specified tags
+            for tag_id in tag_ids:
+                recipes = recipes.filter(tags__id=tag_id)
+            recipes = recipes.distinct()
+        else:
+            # OR logic (default) - recipe must have ANY of the specified tags
+            recipes = recipes.filter(tags__id__in=tag_ids).distinct()
+
         serializer = self.get_serializer(recipes, many=True)
         return Response(serializer.data)
     

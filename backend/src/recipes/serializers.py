@@ -1,8 +1,14 @@
 from django.db import transaction
 from rest_framework import serializers
 from django.conf import settings
-from .models import Recipes, Ingredients, RecipeIngredients, RecipeLikes, Favorites, RecipeNutrition
+from .models import Recipes, Ingredients, RecipeIngredients, RecipeLikes, Favorites, RecipeNutrition, Tag
 from api_management.models import FoodDataCentralAPI
+
+
+class TagSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Tag
+        fields = ['id', 'name', 'slug', 'description']
 
 class RecipeIngredientSerializer(serializers.ModelSerializer):
     # מאפשר לקבל את שם המרכיב בטקסט במקום ID
@@ -25,7 +31,16 @@ class RecipeSerializer(serializers.ModelSerializer):
     ingredients = RecipeIngredientSerializer(many=True, source='recipe_ingredients', read_only=True)
     # For writing - accept ingredients in the request
     recipe_ingredients = RecipeIngredientWriteSerializer(many=True, write_only=True, required=False)
-    
+
+    # Tags - nested for reading, IDs for writing
+    tags = TagSerializer(many=True, read_only=True)
+    tag_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        write_only=True,
+        required=False,
+        allow_empty=True
+    )
+
     # Like and save status
     likes_count = serializers.SerializerMethodField()
     is_liked = serializers.SerializerMethodField()
@@ -33,9 +48,9 @@ class RecipeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Recipes
-        fields = ['id', 'title', 'description', 'prep_time_minutes', 'cook_time_minutes', 
+        fields = ['id', 'title', 'description', 'prep_time_minutes', 'cook_time_minutes',
                   'servings', 'status', 'instructions', 'ingredients', 'recipe_ingredients',
-                  'created_at', 'updated_at', 'likes_count', 'is_liked', 'is_saved']
+                  'tags', 'tag_ids', 'created_at', 'updated_at', 'likes_count', 'is_liked', 'is_saved']
     
     def get_likes_count(self, obj):
         return obj.likes.count()
@@ -161,33 +176,45 @@ class RecipeSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         # שליפת המרכיבים מהנתונים (אם קיימים)
         ingredients_data = validated_data.pop('recipe_ingredients', [])
-        
+        # שליפת תגיות (אם קיימות)
+        tag_ids = validated_data.pop('tag_ids', [])
+
         # יצירת המתכון (ה-author יועבר מה-View)
         recipe = Recipes.objects.create(**validated_data)
-        
+
+        # הוספת תגיות למתכון
+        if tag_ids:
+            recipe.tags.set(tag_ids)
+
         # שימוש בפונקציית העזר ליצירת המרכיבים (אם קיימים)
         if ingredients_data:
             self._handle_ingredients(recipe, ingredients_data)
-        
+
         # Calculate and save nutrition after ingredients are created
         self._calculate_recipe_nutrition(recipe)
-        
+
         return recipe
 
     @transaction.atomic
     def update(self, instance, validated_data):
         # שליפת המרכיבים (אם קיימים בבקשה)
         ingredients_data = validated_data.pop('recipe_ingredients', None)
+        # שליפת תגיות (אם קיימות בבקשה)
+        tag_ids = validated_data.pop('tag_ids', None)
 
         # עדכון שאר שדות המתכון
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
 
+        # עדכון תגיות רק אם נשלחו בבקשה
+        if tag_ids is not None:
+            instance.tags.set(tag_ids)
+
         # עדכון מרכיבים רק אם נשלחו בבקשה
         if ingredients_data is not None:
             self._handle_ingredients(instance, ingredients_data)
             # Recalculate nutrition when ingredients change
             self._calculate_recipe_nutrition(instance)
-            
+
         return instance
