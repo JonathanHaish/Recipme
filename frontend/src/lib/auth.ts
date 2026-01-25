@@ -21,6 +21,7 @@ const AUTH_ENDPOINTS = {
 class APIClient {
   private isRefreshing = false;
   private refreshSubscribers: Array<() => void> = [];
+  private isRedirecting = false;
 
   private subscribeTokenRefresh(callback: () => void): void {
     this.refreshSubscribers.push(callback);
@@ -61,7 +62,7 @@ class APIClient {
           await this.refreshAccessToken();
           this.isRefreshing = false;
           this.onTokenRefreshed();
-          
+
           // Retry original request (new cookie will be sent automatically)
           response = await fetch(url, {
             ...options,
@@ -70,7 +71,23 @@ class APIClient {
           });
         } catch (error) {
           this.isRefreshing = false;
-          throw new Error('Session expired. Please login again.');
+          // Session expired - redirect to login page gracefully
+          // But only if we're not already on an auth page (to prevent redirect loops)
+          if (typeof window !== 'undefined' && !this.isRedirecting) {
+            const currentPath = window.location.pathname;
+            const isAuthPage = currentPath.startsWith('/login') ||
+                              currentPath.startsWith('/register') ||
+                              currentPath.startsWith('/forgot-password') ||
+                              currentPath.startsWith('/reset-password');
+
+            if (!isAuthPage) {
+              // Set flag to prevent multiple redirects
+              this.isRedirecting = true;
+              // Clear any stale state and redirect
+              window.location.href = '/login?session_expired=true';
+            }
+          }
+          throw new Error('Session expired');
         }
       } else {
         // Wait for token refresh to complete
@@ -79,7 +96,7 @@ class APIClient {
             resolve();
           });
         });
-        
+
         // Retry with refreshed token
         response = await fetch(url, {
           ...options,

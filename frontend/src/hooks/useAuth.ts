@@ -19,8 +19,20 @@ export function useAuth() {
       setUser(userData);
       setIsAuthenticated(true);
     } catch (error) {
+      // Silently handle authentication errors (user is just not logged in)
       setUser(null);
       setIsAuthenticated(false);
+      // Don't log errors on auth pages - it's expected behavior
+      if (typeof window !== 'undefined') {
+        const currentPath = window.location.pathname;
+        const isAuthPage = currentPath.startsWith('/login') ||
+                          currentPath.startsWith('/register') ||
+                          currentPath.startsWith('/forgot-password') ||
+                          currentPath.startsWith('/reset-password');
+        if (!isAuthPage) {
+          console.error('Authentication check failed:', error);
+        }
+      }
     } finally {
       setLoading(false);
     }

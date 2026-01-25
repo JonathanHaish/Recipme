@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ChefHat } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { authAPI } from "@/lib/auth";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -12,8 +12,18 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [sessionExpiredMessage, setSessionExpiredMessage] = useState("");
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { isAuthenticated, loading: authLoading } = useAuth();
+
+  // Check for session expiration message
+  useEffect(() => {
+    const sessionExpired = searchParams.get('session_expired');
+    if (sessionExpired === 'true' && !sessionExpiredMessage) {
+      setSessionExpiredMessage("Your session has expired. Please log in again.");
+    }
+  }, [searchParams, sessionExpiredMessage]);
 
   // Redirect if already logged in
   useEffect(() => {
@@ -26,11 +36,12 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError("");
+    setSessionExpiredMessage(""); // Clear session expired message on submit
 
     try {
       const response = await authAPI.login({ email, password });
       console.log("Login successful:", response);
-      
+
       // Redirect to recipes page on success
       router.push("/recipes");
     } catch (err: any) {
@@ -111,6 +122,12 @@ export default function LoginPage() {
               Forgot password?
             </Link>
           </div>
+
+          {sessionExpiredMessage && (
+            <div className="rounded-lg bg-yellow-100 border border-yellow-300 p-3 text-sm text-yellow-800">
+              {sessionExpiredMessage}
+            </div>
+          )}
 
           {error && (
             <div className="rounded-lg bg-red-100 p-3 text-sm text-red-700">

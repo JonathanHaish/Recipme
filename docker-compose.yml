@@ -12,6 +12,8 @@ services:
     volumes:
       - ./frontend/src:/app
       - /app/node_modules
+    env_file:
+      - .env
     environment:
       - NODE_ENV=development
 
@@ -26,20 +28,14 @@ services:
       - ./backend/src:/app
     depends_on:
       - postgres
-      - redis        # ← added dependency
+      - redis
+    env_file:
+      - .env
     environment:
-      - POSTGRES_DB=recipme
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
+      # Database connection (can still be overridden by .env)
       - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
-      - REDIS_HOST=redis        # ← backend will connect to redis
-      - REDIS_PORT=6379
-      - API_KEY=OsxzJJV049cMYt2e1XU6lEQP7o864NKbxkvNAGWv
-      # Superuser auto-creation
-      - DJANGO_SUPERUSER_USERNAME=admin
-      - DJANGO_SUPERUSER_EMAIL=admin@recipme.com
-      - DJANGO_SUPERUSER_PASSWORD=admin123  # Change in production!
+      - REDIS_HOST=redis
+      - EMAIL_HOST=mailpit
 
   postgres:
     container_name: postgres-db
@@ -48,10 +44,8 @@ services:
       - 5432:5432
     volumes:
       - postgres-data:/var/lib/postgresql/data
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=recipme
+    env_file:
+      - .env
 
   pgadmin:
     container_name: pgadmin
@@ -60,9 +54,8 @@ services:
       - 5050:80
     volumes:
       - pgadmin-data:/var/lib/pgadmin
-    environment:
-      - PGADMIN_DEFAULT_EMAIL=admin@recipme.com
-      - PGADMIN_DEFAULT_PASSWORD=admin
+    env_file:
+      - .env
     depends_on:
       - postgres
   mailpit:

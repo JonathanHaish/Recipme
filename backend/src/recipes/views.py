@@ -32,6 +32,30 @@ class RecipeViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
 
+    def update(self, request, *args, **kwargs):
+        """
+        Update a recipe instance.
+        Only allows users to update their own recipes (unless admin).
+        """
+        instance = self.get_object()
+        # Check if user is the author or is admin
+        if instance.author != request.user and not (request.user.is_staff or request.user.is_superuser):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You can only edit your own recipes.")
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        """
+        Partially update a recipe instance.
+        Only allows users to update their own recipes (unless admin).
+        """
+        instance = self.get_object()
+        # Check if user is the author or is admin
+        if instance.author != request.user and not (request.user.is_staff or request.user.is_superuser):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You can only edit your own recipes.")
+        return super().partial_update(request, *args, **kwargs)
+
     def destroy(self, request, *args, **kwargs):
         """
         Delete a recipe instance.

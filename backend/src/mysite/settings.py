@@ -21,12 +21,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-7&6z8+0q$&6-m@mtksqecfz5%=pbb_@taei+uge65isp4y6^#='
+# Generate a new key with: python -c 'from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())'
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-dev-key-only-change-this')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = ['*']
+# Comma-separated list of allowed hosts
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 
 # Application definition
@@ -197,7 +199,11 @@ DEFAULT_FROM_EMAIL = 'noreply@recipme.com'
 
 # Frontend URL for password reset links
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
-API_KEY = os.environ.get("API_KEY","")
+
+# External API Keys
+API_KEY = os.environ.get("API_KEY", "")
+if not API_KEY and not DEBUG:
+    raise ValueError("API_KEY environment variable is required in production")
 
 
 
@@ -212,4 +218,5 @@ CACHES = {
 }
 
 
-INTERNAL_API_SECRET_KEY=os.environ.get("INTERNAL_API_SECRET_KEY")
+# Internal API Secret Key (for internal service communication if needed)
+INTERNAL_API_SECRET_KEY = os.environ.get("INTERNAL_API_SECRET_KEY", "")
