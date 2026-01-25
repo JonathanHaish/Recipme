@@ -54,6 +54,7 @@ export default function App() {
   const transformBackendToFrontend = (backendRecipes: BackendRecipe[]) => {
     return backendRecipes.map((recipe: BackendRecipe) => ({
       id: recipe.id?.toString(),
+      authorId: recipe.author,
       name: recipe.title,
       type: recipe.tags?.map(t => t.name).join(', ') || recipe.description || '',
       instructions: recipe.instructions,
@@ -268,6 +269,15 @@ export default function App() {
   const handleViewDetails = (recipe: any) => {
     setSelectedRecipeForView(recipe);
     setIsViewRecipeModalOpen(true);
+  };
+
+  const handleEditFromView = (recipe: any) => {
+    setSelectedRecipeForEdit(recipe);
+    setIsRecipeEditModalOpen(true);
+  };
+
+  const handleDeleteFromView = async (recipeId: string) => {
+    await handleDeleteRecipes([recipeId]);
   };
 
   const handleOpenEditModal = () => {
@@ -638,6 +648,10 @@ export default function App() {
           setSelectedRecipeForView(null);
         }}
         recipe={selectedRecipeForView}
+        currentUserId={user?.id}
+        isAdmin={user?.is_staff || user?.is_superuser}
+        onEdit={handleEditFromView}
+        onDelete={handleDeleteFromView}
       />
 
     </div>

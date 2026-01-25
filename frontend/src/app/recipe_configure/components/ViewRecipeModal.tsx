@@ -1,4 +1,5 @@
 import { Tag, RecipeNutrition } from "@/lib/api";
+import { Edit, Trash2 } from "lucide-react";
 
 interface Ingredient {
   id: string;
@@ -9,6 +10,7 @@ interface Ingredient {
 
 interface Recipe {
   id?: string;
+  authorId?: number;
   name: string;
   type: string;
   instructions?: string;
@@ -24,10 +26,39 @@ interface ViewRecipeModalProps {
   isOpen: boolean;
   onClose: () => void;
   recipe: Recipe | null;
+  currentUserId?: number;
+  isAdmin?: boolean;
+  onEdit?: (recipe: Recipe) => void;
+  onDelete?: (recipeId: string) => void;
 }
 
-export function ViewRecipeModal({ isOpen, onClose, recipe }: ViewRecipeModalProps) {
+export function ViewRecipeModal({
+  isOpen,
+  onClose,
+  recipe,
+  currentUserId,
+  isAdmin = false,
+  onEdit,
+  onDelete
+}: ViewRecipeModalProps) {
   if (!isOpen || !recipe) return null;
+
+  // Check if current user can edit/delete (owner or admin)
+  const canModify = isAdmin || (currentUserId && recipe.authorId === currentUserId);
+
+  const handleEdit = () => {
+    if (onEdit && recipe) {
+      onEdit(recipe);
+      onClose();
+    }
+  };
+
+  const handleDelete = () => {
+    if (onDelete && recipe.id && confirm('Are you sure you want to delete this recipe?')) {
+      onDelete(recipe.id);
+      onClose();
+    }
+  };
 
   return (
     <div
@@ -176,7 +207,29 @@ export function ViewRecipeModal({ isOpen, onClose, recipe }: ViewRecipeModalProp
         </div>
 
         {/* Modal Footer */}
-        <div className="flex justify-end border-t-2 border-black px-5 py-3">
+        <div className="flex justify-between border-t-2 border-black px-5 py-3">
+          <div className="flex gap-2">
+            {canModify && onEdit && (
+              <button
+                type="button"
+                onClick={handleEdit}
+                className="flex items-center gap-2 rounded border-2 border-black bg-white px-4 py-2 text-black hover:bg-gray-100 font-medium"
+              >
+                <Edit className="w-4 h-4" />
+                Edit
+              </button>
+            )}
+            {canModify && onDelete && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="flex items-center gap-2 rounded border-2 border-red-600 bg-white px-4 py-2 text-red-600 hover:bg-red-50 font-medium"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete
+              </button>
+            )}
+          </div>
           <button
             type="button"
             onClick={onClose}

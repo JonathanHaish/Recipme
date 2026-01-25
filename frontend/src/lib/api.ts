@@ -125,6 +125,7 @@ interface RecipeNutrition {
 
 interface BackendRecipe {
   id?: number;
+  author?: number;  // User ID of the recipe creator
   title: string;
   description: string;
   prep_time_minutes?: number;

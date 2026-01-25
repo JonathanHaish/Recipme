@@ -54,9 +54,12 @@ class RecipeSerializer(serializers.ModelSerializer):
     # Nutrition data
     nutrition = RecipeNutritionSerializer(read_only=True)
 
+    # Author ID (read-only)
+    author = serializers.PrimaryKeyRelatedField(read_only=True)
+
     class Meta:
         model = Recipes
-        fields = ['id', 'title', 'description', 'prep_time_minutes', 'cook_time_minutes',
+        fields = ['id', 'author', 'title', 'description', 'prep_time_minutes', 'cook_time_minutes',
                   'servings', 'status', 'instructions', 'ingredients', 'recipe_ingredients',
                   'tags', 'tag_ids', 'created_at', 'updated_at', 'likes_count', 'is_liked', 'is_saved', 'nutrition']
     
