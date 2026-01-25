@@ -58,7 +58,7 @@ export default function App() {
       name: recipe.title,
       type: recipe.tags?.map(t => t.name).join(', ') || recipe.description || '',
       instructions: recipe.instructions,
-      image: "",
+      image: recipe.image_url || "",
       dateCreated: recipe.created_at ? new Date(recipe.created_at).toISOString().split('T')[0] : undefined,
       dateUpdated: recipe.updated_at ? new Date(recipe.updated_at).toISOString().split('T')[0] : undefined,
       ingredients: recipe.ingredients?.map((ing, idx) => ({

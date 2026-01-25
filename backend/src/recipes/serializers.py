@@ -1,7 +1,10 @@
 from django.db import transaction
 from rest_framework import serializers
 from django.conf import settings
-from .models import Recipes, Ingredients, RecipeIngredients, RecipeLikes, Favorites, RecipeNutrition, Tag
+from django.core.files.base import ContentFile
+import base64
+import uuid
+from .models import Recipes, Ingredients, RecipeIngredients, RecipeLikes, Favorites, RecipeNutrition, Tag, RecipeImages
 from api_management.models import FoodDataCentralAPI
 
 
@@ -9,6 +12,22 @@ class TagSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tag
         fields = ['id', 'name', 'slug', 'description']
+
+class RecipeImageSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RecipeImages
+        fields = ['id', 'image', 'image_url', 'is_primary']
+        read_only_fields = ['id']
+
+    def get_image_url(self, obj):
+        if obj.image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.image.url)
+            return obj.image.url
+        return obj.image_url
 
 class RecipeNutritionSerializer(serializers.ModelSerializer):
     class Meta:
@@ -46,6 +65,13 @@ class RecipeSerializer(serializers.ModelSerializer):
         allow_empty=True
     )
 
+    # Images - nested for reading
+    images = RecipeImageSerializer(many=True, read_only=True)
+    # Primary image URL for easy access
+    image_url = serializers.SerializerMethodField()
+    # For writing - accept base64 image data
+    image = serializers.CharField(write_only=True, required=False, allow_blank=True, allow_null=True)
+
     # Like and save status
     likes_count = serializers.SerializerMethodField()
     is_liked = serializers.SerializerMethodField()
@@ -61,22 +87,66 @@ class RecipeSerializer(serializers.ModelSerializer):
         model = Recipes
         fields = ['id', 'author', 'title', 'description', 'prep_time_minutes', 'cook_time_minutes',
                   'servings', 'status', 'instructions', 'ingredients', 'recipe_ingredients',
-                  'tags', 'tag_ids', 'created_at', 'updated_at', 'likes_count', 'is_liked', 'is_saved', 'nutrition']
+                  'tags', 'tag_ids', 'created_at', 'updated_at', 'likes_count', 'is_liked', 'is_saved',
+                  'nutrition', 'images', 'image_url', 'image']
     
     def get_likes_count(self, obj):
         return obj.likes.count()
-    
+
     def get_is_liked(self, obj):
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             return RecipeLikes.objects.filter(user=request.user, recipe=obj).exists()
         return False
-    
+
     def get_is_saved(self, obj):
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             return Favorites.objects.filter(user=request.user, recipe=obj).exists()
         return False
+
+    def get_image_url(self, obj):
+        """Get the primary image URL or the first image"""
+        primary_image = obj.images.filter(is_primary=True).first()
+        if not primary_image:
+            primary_image = obj.images.first()
+
+        if primary_image and primary_image.image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(primary_image.image.url)
+            return primary_image.image.url
+        return None
+
+    def _handle_image(self, recipe, image_data):
+        """Handle base64 image upload"""
+        if not image_data:
+            return
+
+        try:
+            # Check if it's a base64 string
+            if image_data.startswith('data:image'):
+                # Extract the base64 data
+                format, imgstr = image_data.split(';base64,')
+                ext = format.split('/')[-1]
+
+                # Decode base64 string
+                data = ContentFile(base64.b64decode(imgstr), name=f'{uuid.uuid4()}.{ext}')
+
+                # Delete old images for this recipe
+                recipe.images.all().delete()
+
+                # Create new image
+                RecipeImages.objects.create(
+                    recipe=recipe,
+                    image=data,
+                    is_primary=True
+                )
+        except Exception as e:
+            # Log error but don't fail recipe creation
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error handling image for recipe {recipe.id}: {str(e)}")
 
     # פונקציית עזר פנימית לטיפול במרכיבים כדי לא לחזור על קוד
     def _handle_ingredients(self, recipe, ingredients_data):
@@ -191,6 +261,8 @@ class RecipeSerializer(serializers.ModelSerializer):
         ingredients_data = validated_data.pop('recipe_ingredients', [])
         # שליפת תגיות (אם קיימות)
         tag_ids = validated_data.pop('tag_ids', [])
+        # שליפת תמונה (אם קיימת)
+        image_data = validated_data.pop('image', None)
 
         # יצירת המתכון (ה-author יועבר מה-View)
         recipe = Recipes.objects.create(**validated_data)
@@ -203,6 +275,10 @@ class RecipeSerializer(serializers.ModelSerializer):
         if ingredients_data:
             self._handle_ingredients(recipe, ingredients_data)
 
+        # Handle image upload
+        if image_data:
+            self._handle_image(recipe, image_data)
+
         # Calculate and save nutrition after ingredients are created
         self._calculate_recipe_nutrition(recipe)
 
@@ -214,6 +290,8 @@ class RecipeSerializer(serializers.ModelSerializer):
         ingredients_data = validated_data.pop('recipe_ingredients', None)
         # שליפת תגיות (אם קיימות בבקשה)
         tag_ids = validated_data.pop('tag_ids', None)
+        # שליפת תמונה (אם קיימת בבקשה)
+        image_data = validated_data.pop('image', None)
 
         # עדכון שאר שדות המתכון
         for attr, value in validated_data.items():
@@ -223,6 +301,10 @@ class RecipeSerializer(serializers.ModelSerializer):
         # עדכון תגיות רק אם נשלחו בבקשה
         if tag_ids is not None:
             instance.tags.set(tag_ids)
+
+        # Handle image upload if provided
+        if image_data is not None:
+            self._handle_image(instance, image_data)
 
         # עדכון מרכיבים רק אם נשלחו בבקשה
         if ingredients_data is not None:

@@ -10,3 +10,4 @@ django-redis==5.4.0
 requests
 tzdata
 django-cors-headers
+Pillow==11.0.0

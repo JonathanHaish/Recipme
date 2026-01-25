@@ -141,6 +141,8 @@ interface BackendRecipe {
   is_liked?: boolean;
   is_saved?: boolean;
   nutrition?: RecipeNutrition;
+  image_url?: string;  // Primary image URL
+  images?: Array<{id: number; image: string; image_url: string; is_primary: boolean}>;
 }
 
 interface FrontendRecipe {
@@ -193,8 +195,17 @@ export const recipesAPI = {
         backendRecipe.tag_ids = recipe.tags.map(tag => tag.id);
       }
 
-      // Debug: log what we're sending
-      console.log('Sending recipe data:', JSON.stringify(backendRecipe, null, 2));
+      // Add image if provided
+      if (recipe.image) {
+        backendRecipe.image = recipe.image;
+      }
+
+      // Debug: log what we're sending (excluding large image data)
+      const logData = { ...backendRecipe };
+      if (logData.image) {
+        logData.image = `<base64 image data: ${logData.image.substring(0, 50)}...>`;
+      }
+      console.log('Sending recipe data:', JSON.stringify(logData, null, 2));
 
       // Use apiClient for authenticated requests with automatic token refresh
       return await apiClient.request<BackendRecipe>(`${API_URL}/recipes/recipes/`, {
@@ -238,6 +249,11 @@ export const recipesAPI = {
       // Add tag_ids if tags are provided
       if (recipe.tags && recipe.tags.length > 0) {
         backendRecipe.tag_ids = recipe.tags.map(tag => tag.id);
+      }
+
+      // Add image if provided
+      if (recipe.image) {
+        backendRecipe.image = recipe.image;
       }
 
       // Use apiClient for authenticated requests

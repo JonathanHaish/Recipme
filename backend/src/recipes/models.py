@@ -123,7 +123,8 @@ class Favorites(models.Model):
 # ----------------------------------------------------------------------
 class RecipeImages(models.Model):
     recipe = models.ForeignKey(Recipes, on_delete=models.CASCADE, related_name='images')
-    image_url = models.CharField(max_length=255)
+    image = models.ImageField(upload_to='recipe_images/', null=True, blank=True)
+    image_url = models.CharField(max_length=255, null=True, blank=True)  # For external URLs or fallback
     is_primary = models.BooleanField(default=False)
 
     class Meta:
