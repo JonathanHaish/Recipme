@@ -389,9 +389,6 @@ export default function App() {
             <h1 className="text-3xl font-bold text-black">Recipes</h1>
           </div>
           <div className="flex items-center gap-3">
-            <button className="px-4 py-2 border border-black rounded hover:bg-gray-100 text-black whitespace-nowrap">
-              Admin points
-            </button>
             <RecipeActionsDropdown 
               onAddRecipe={handleOpenCreateModal}
               onEditRecipe={handleOpenEditModal}
