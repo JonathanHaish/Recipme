@@ -10,6 +10,11 @@ class TagSerializer(serializers.ModelSerializer):
         model = Tag
         fields = ['id', 'name', 'slug', 'description']
 
+class RecipeNutritionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RecipeNutrition
+        fields = ['calories_kcal', 'protein_g', 'carbs_g', 'fiber_g', 'sodium_mg', 'updated_at']
+
 class RecipeIngredientSerializer(serializers.ModelSerializer):
     # מאפשר לקבל את שם המרכיב בטקסט במקום ID
     ingredient_name = serializers.CharField(source='ingredient.name', read_only=True)
@@ -46,11 +51,14 @@ class RecipeSerializer(serializers.ModelSerializer):
     is_liked = serializers.SerializerMethodField()
     is_saved = serializers.SerializerMethodField()
 
+    # Nutrition data
+    nutrition = RecipeNutritionSerializer(read_only=True)
+
     class Meta:
         model = Recipes
         fields = ['id', 'title', 'description', 'prep_time_minutes', 'cook_time_minutes',
                   'servings', 'status', 'instructions', 'ingredients', 'recipe_ingredients',
-                  'tags', 'tag_ids', 'created_at', 'updated_at', 'likes_count', 'is_liked', 'is_saved']
+                  'tags', 'tag_ids', 'created_at', 'updated_at', 'likes_count', 'is_liked', 'is_saved', 'nutrition']
     
     def get_likes_count(self, obj):
         return obj.likes.count()

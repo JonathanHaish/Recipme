@@ -12,6 +12,7 @@ interface Ingredient {
   id: string;
   name: string;
   amount: string;
+  unit?: string; // Unit of measurement (cups, grams, tablespoons, etc.)
   fdc_id?: number; // Food Data Central API ID
 }
 
@@ -83,6 +84,7 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
       });
       setNewIngredientName("");
       setNewIngredientAmount("");
+      setNewIngredientUnit("");
       setIsIngredientValid(false);
       setSelectedIngredientData(null);
       setSubmitError(null);
@@ -122,6 +124,7 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
     });
     setNewIngredientName("");
     setNewIngredientAmount("");
+    setNewIngredientUnit("");
     setIsIngredientValid(false);
     setSubmitError(null);
     // Reset file input if it exists
@@ -168,6 +171,7 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
         id: Date.now().toString(),
         name: newIngredientName,
         amount: newIngredientAmount,
+        unit: "g", // Always use grams
         fdc_id: selectedIngredientData?.id, // Store the fdc_id from selected ingredient
       };
       setFormData((prev) => ({
@@ -446,12 +450,16 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
                     className="w-full"
                   />
                 </div>
-                <input
-                  value={newIngredientAmount}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewIngredientAmount(e.target.value)}
-                  placeholder="Amount"
-                  className="w-32 px-3 py-2 border border-black rounded text-black"
-                />
+                <div className="flex flex-col w-32">
+                  <input
+                    type="number"
+                    value={newIngredientAmount}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewIngredientAmount(e.target.value)}
+                    placeholder="Amount"
+                    className="w-full px-3 py-2 border border-black rounded text-black"
+                  />
+                  <span className="text-xs text-gray-600 mt-1 text-center">grams (g)</span>
+                </div>
                 <button
                   type="button"
                   onClick={handleAddIngredient}
@@ -476,7 +484,9 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
                     >
                       <div className="flex-1">
                         <p className="font-medium text-black">{ingredient.name}</p>
-                        <p className="text-sm text-gray-600">Amount: {ingredient.amount}</p>
+                        <p className="text-sm text-gray-600">
+                          Amount: {ingredient.amount} g
+                        </p>
                       </div>
                       <button
                         type="button"

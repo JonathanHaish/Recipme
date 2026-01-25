@@ -64,11 +64,13 @@ export default function App() {
         id: idx.toString(),
         name: ing.ingredient_name || '',
         amount: ing.quantity || '',
+        unit: ing.unit,
       })) || [],
       tags: recipe.tags || [],
       isLiked: recipe.is_liked || false,
       isSaved: recipe.is_saved || false,
       likesCount: recipe.likes_count || 0,
+      nutrition: recipe.nutrition,
     }));
   };
 

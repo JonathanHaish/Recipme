@@ -1,5 +1,5 @@
 import { Heart, Bookmark, Edit } from "lucide-react";
-import { Tag } from "@/lib/api";
+import { Tag, RecipeNutrition } from "@/lib/api";
 
 interface Recipe {
   id?: string;
@@ -13,6 +13,7 @@ interface Recipe {
   isLiked?: boolean;
   isSaved?: boolean;
   likesCount?: number;
+  nutrition?: RecipeNutrition;
 }
 
 interface RecipeCardProps {
@@ -101,6 +102,14 @@ export function RecipeCard({ recipe, onEdit, onViewDetails, onToggleLike, onTogg
         <p className="text-xs text-gray-600 mt-1">
           <span className="font-medium">Ingredients:</span> {recipe.ingredients.length}
         </p>
+        {recipe.nutrition && recipe.nutrition.calories_kcal && (
+          <p className="text-xs text-gray-600 mt-0.5">
+            <span className="font-medium">Calories:</span> {Math.round(Number(recipe.nutrition.calories_kcal))} kcal
+            {recipe.nutrition.protein_g && (
+              <span className="ml-2"><span className="font-medium">Protein:</span> {Number(recipe.nutrition.protein_g).toFixed(1)}g</span>
+            )}
+          </p>
+        )}
         <p className="text-xs text-gray-600 mt-0.5">
           <span className="font-medium">Updated:</span> {recipe.dateUpdated || "N/A"}
         </p>

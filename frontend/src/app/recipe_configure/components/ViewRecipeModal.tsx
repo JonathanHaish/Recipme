@@ -1,9 +1,10 @@
-import { Tag } from "@/lib/api";
+import { Tag, RecipeNutrition } from "@/lib/api";
 
 interface Ingredient {
   id: string;
   name: string;
   amount: string;
+  unit?: string;
 }
 
 interface Recipe {
@@ -16,6 +17,7 @@ interface Recipe {
   tags?: Tag[];
   dateCreated?: string;
   dateUpdated?: string;
+  nutrition?: RecipeNutrition;
 }
 
 interface ViewRecipeModalProps {
@@ -95,6 +97,39 @@ export function ViewRecipeModal({ isOpen, onClose, recipe }: ViewRecipeModalProp
             )}
           </div>
 
+          {/* Nutrition Information */}
+          {recipe.nutrition && (recipe.nutrition.calories_kcal || recipe.nutrition.protein_g || recipe.nutrition.carbs_g || recipe.nutrition.fiber_g) && (
+            <div className="mb-4">
+              <h4 className="text-lg font-bold text-black mb-2">Nutrition Information</h4>
+              <div className="grid grid-cols-2 gap-3 p-3 border-2 border-black rounded-lg bg-gray-50">
+                {recipe.nutrition.calories_kcal !== undefined && recipe.nutrition.calories_kcal !== null && (
+                  <div className="flex flex-col">
+                    <span className="text-xs text-gray-600 font-medium">Calories</span>
+                    <span className="text-lg font-bold text-black">{Math.round(Number(recipe.nutrition.calories_kcal))} kcal</span>
+                  </div>
+                )}
+                {recipe.nutrition.protein_g !== undefined && recipe.nutrition.protein_g !== null && (
+                  <div className="flex flex-col">
+                    <span className="text-xs text-gray-600 font-medium">Protein</span>
+                    <span className="text-lg font-bold text-black">{Number(recipe.nutrition.protein_g).toFixed(1)} g</span>
+                  </div>
+                )}
+                {recipe.nutrition.carbs_g !== undefined && recipe.nutrition.carbs_g !== null && (
+                  <div className="flex flex-col">
+                    <span className="text-xs text-gray-600 font-medium">Carbohydrates</span>
+                    <span className="text-lg font-bold text-black">{Number(recipe.nutrition.carbs_g).toFixed(1)} g</span>
+                  </div>
+                )}
+                {recipe.nutrition.fiber_g !== undefined && recipe.nutrition.fiber_g !== null && (
+                  <div className="flex flex-col">
+                    <span className="text-xs text-gray-600 font-medium">Fiber</span>
+                    <span className="text-lg font-bold text-black">{Number(recipe.nutrition.fiber_g).toFixed(1)} g</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Ingredients */}
           <div className="mb-4">
             <h4 className="text-lg font-bold text-black mb-2">Ingredients ({recipe.ingredients.length})</h4>
@@ -106,7 +141,9 @@ export function ViewRecipeModal({ isOpen, onClose, recipe }: ViewRecipeModalProp
                     className="flex items-center justify-between py-2 px-3 border border-gray-300 rounded bg-gray-50"
                   >
                     <span className="text-black font-medium">{ingredient.name}</span>
-                    <span className="text-gray-700">{ingredient.amount}</span>
+                    <span className="text-gray-700 font-medium">
+                      {ingredient.amount} g
+                    </span>
                   </div>
                 ))}
               </div>

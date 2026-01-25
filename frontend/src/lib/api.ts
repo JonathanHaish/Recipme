@@ -113,6 +113,15 @@ interface RecipeIngredient {
   note?: string;
 }
 
+interface RecipeNutrition {
+  calories_kcal?: number | string; // Django Decimal serializes as string
+  protein_g?: number | string;
+  carbs_g?: number | string;
+  fiber_g?: number | string;
+  sodium_mg?: number | string;
+  updated_at?: string;
+}
+
 interface BackendRecipe {
   id?: number;
   title: string;
@@ -129,6 +138,7 @@ interface BackendRecipe {
   likes_count?: number;
   is_liked?: boolean;
   is_saved?: boolean;
+  nutrition?: RecipeNutrition;
 }
 
 interface FrontendRecipe {
@@ -141,9 +151,11 @@ interface FrontendRecipe {
     id: string;
     name: string;
     amount: string;
+    unit?: string;
     fdc_id?: number;
   }>;
   tags?: Tag[];
+  nutrition?: RecipeNutrition;
 }
 
 export const recipesAPI = {
@@ -167,6 +179,7 @@ export const recipesAPI = {
               id: ing.fdc_id, // Include fdc_id in ingredient dict
             },
             quantity: ing.amount,
+            unit: ing.unit || null,
             fdc_id: ing.fdc_id, // Also include as separate field for serializer
           };
           return ingredientData;
@@ -215,6 +228,7 @@ export const recipesAPI = {
             id: ing.fdc_id,
           },
           quantity: ing.amount,
+          unit: ing.unit || null,
           fdc_id: ing.fdc_id,
         })),
       };
@@ -363,5 +377,5 @@ export const recipesAPI = {
   },
 };
 
-export type { Ingredient, NutritionData, FrontendRecipe, BackendRecipe, Tag };
+export type { Ingredient, NutritionData, FrontendRecipe, BackendRecipe, Tag, RecipeNutrition };
 
