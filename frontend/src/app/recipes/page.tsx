@@ -627,6 +627,8 @@ export default function App() {
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         recipes={recipes}
+        currentUserId={user?.id}
+        isAdmin={user?.is_staff || user?.is_superuser}
         onSelectRecipe={handleSelectRecipeFromTable}
         onDeleteRecipes={handleDeleteRecipes}
       />

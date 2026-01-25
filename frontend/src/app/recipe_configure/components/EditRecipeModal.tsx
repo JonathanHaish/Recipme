@@ -3,6 +3,7 @@ import { Trash2 } from "lucide-react";
 
 interface Recipe {
   id?: string;
+  authorId?: number;
   name: string;
   type: string;
   instructions?: string;
@@ -16,15 +17,30 @@ interface EditRecipeModalProps {
   isOpen: boolean;
   onClose: () => void;
   recipes: Recipe[];
+  currentUserId?: number;
+  isAdmin?: boolean;
   onSelectRecipe: (recipe: Recipe) => void;
   onDeleteRecipes: (recipeIds: string[]) => void;
 }
 
-export function EditRecipeModal({ isOpen, onClose, recipes, onSelectRecipe, onDeleteRecipes }: EditRecipeModalProps) {
+export function EditRecipeModal({
+  isOpen,
+  onClose,
+  recipes,
+  currentUserId,
+  isAdmin = false,
+  onSelectRecipe,
+  onDeleteRecipes
+}: EditRecipeModalProps) {
   const [selectedRecipeIds, setSelectedRecipeIds] = useState<Set<string>>(new Set());
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   if (!isOpen) return null;
+
+  // Filter recipes to only show user's own recipes (unless admin)
+  const userRecipes = isAdmin
+    ? recipes
+    : recipes.filter(recipe => recipe.authorId === currentUserId);
 
   const handleRowClick = (recipe: Recipe, event?: React.MouseEvent) => {
     // Don't select when clicking checkbox
@@ -79,7 +95,9 @@ export function EditRecipeModal({ isOpen, onClose, recipes, onSelectRecipe, onDe
       >
         {/* Modal Header */}
         <div className="flex items-center justify-between border-b-2 border-black px-5 py-4">
-          <h2 className="text-xl font-bold text-black">Edit Recipe</h2>
+          <h2 className="text-xl font-bold text-black">
+            {isAdmin ? 'Edit Recipe (Admin)' : 'Edit Your Recipe'}
+          </h2>
           <button
             type="button"
             onClick={onClose}
@@ -91,10 +109,12 @@ export function EditRecipeModal({ isOpen, onClose, recipes, onSelectRecipe, onDe
 
         {/* Modal Content */}
         <div className="flex-1 overflow-y-auto px-5 py-4">
-          {recipes.length === 0 ? (
+          {userRecipes.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-lg text-gray-600 mb-2">No recipes available</p>
-              <p className="text-sm text-gray-500">Create a recipe first to edit it</p>
+              <p className="text-lg text-gray-600 mb-2">No recipes to edit</p>
+              <p className="text-sm text-gray-500">
+                {isAdmin ? 'No recipes found' : 'You haven\'t created any recipes yet'}
+              </p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -104,10 +124,10 @@ export function EditRecipeModal({ isOpen, onClose, recipes, onSelectRecipe, onDe
                     <th className="text-left px-4 py-3 text-sm font-bold text-black w-12">
                       <input
                         type="checkbox"
-                        checked={selectedRecipeIds.size === recipes.length && recipes.length > 0}
+                        checked={selectedRecipeIds.size === userRecipes.length && userRecipes.length > 0}
                         onChange={(e) => {
                           if (e.target.checked) {
-                            setSelectedRecipeIds(new Set(recipes.map(r => r.id!)));
+                            setSelectedRecipeIds(new Set(userRecipes.map(r => r.id!)));
                           } else {
                             setSelectedRecipeIds(new Set());
                           }
@@ -124,7 +144,7 @@ export function EditRecipeModal({ isOpen, onClose, recipes, onSelectRecipe, onDe
                   </tr>
                 </thead>
                 <tbody>
-                  {recipes.map((recipe) => (
+                  {userRecipes.map((recipe) => (
                     <tr
                       key={recipe.id}
                       onClick={(e) => handleRowClick(recipe, e)}
