@@ -5,12 +5,21 @@ import { useRouter } from "next/navigation";
 import { Search, Heart, Bookmark, ChefHat, LogOut, User } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { ingredientsAPI, recipesAPI, type Ingredient, type NutritionData, type BackendRecipe, type Tag } from "@/lib/api";
+
+interface NutritionFilter {
+  calories_kcal?: { min?: number; max?: number };
+  protein_g?: { min?: number; max?: number };
+  fat_g?: { min?: number; max?: number };
+  carbs_g?: { min?: number; max?: number };
+  fiber_g?: { min?: number; max?: number };
+  sugars_g?: { min?: number; max?: number };
+}
 import { RecipeGrid } from "@/app/recipe_configure/components/RecipeGrid";
 import { EditRecipeModal } from "@/app/recipe_configure/components/EditRecipeModal";
 import { RecipeModal } from "@/app/recipe_configure/components/RecipeModal";
 import { ViewRecipeModal } from "@/app/recipe_configure/components/ViewRecipeModal";
 import { RecipeActionsDropdown } from "@/app/recipe_configure/components/RecipeActionsDropdown";
-import { FiltersDropdown } from "@/app/recipe_configure/components/FiltersDropdown";
+import { FilterBar } from "@/app/recipe_configure/components/FilterBar";
 
 export default function App() {
   const [favorites, setFavorites] = useState<Record<number, boolean>>({});
@@ -22,10 +31,10 @@ export default function App() {
   const [hasSearched, setHasSearched] = useState(false);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [checkedTagIds, setCheckedTagIds] = useState<number[]>([]);
-  const [filterMatchMode, setFilterMatchMode] = useState<'any' | 'all'>('any');
-  const [checkedNutrition, setCheckedNutrition] = useState(false);
-  const [checkedTopLiked, setCheckedTopLiked] = useState(false);
-  const [checkedSaved, setCheckedSaved] = useState(false);
+  const [tagMatchMode, setTagMatchMode] = useState<'any' | 'all'>('any');
+  const [nutritionFilters, setNutritionFilters] = useState<NutritionFilter>({});
+  const [likesSortOrder, setLikesSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
+  const [showSavedOnly, setShowSavedOnly] = useState(false);
   const [allRecipes, setAllRecipes] = useState<any[]>([]);
   const [selectedIngredient, setSelectedIngredient] = useState<Ingredient | null>(null);
   const [nutritionData, setNutritionData] = useState<NutritionData | null>(null);
@@ -163,7 +172,7 @@ export default function App() {
 
     // Filter by tags with OR/AND logic
     if (checkedTagIds.length > 0) {
-      if (filterMatchMode === 'all') {
+      if (tagMatchMode === 'all') {
         // AND logic - recipe must have ALL selected tags
         filtered = filtered.filter(recipe => {
           if (!recipe.tags || recipe.tags.length === 0) return false;
@@ -171,7 +180,7 @@ export default function App() {
           return checkedTagIds.every(tagId => recipeTagIds.includes(tagId));
         });
       } else {
-        // OR logic (default) - recipe must have ANY of the selected tags
+        // OR logic - recipe must have ANY of the selected tags
         filtered = filtered.filter(recipe => {
           if (!recipe.tags || recipe.tags.length === 0) return false;
           const recipeTagIds = recipe.tags.map((t: Tag) => t.id);
@@ -180,28 +189,41 @@ export default function App() {
       }
     }
 
-    // Filter by top liked
-    if (checkedTopLiked) {
-      // Sort by created_at desc and take top 10
+    // Filter by saved only
+    if (showSavedOnly) {
+      filtered = filtered.filter(recipe => recipe.isSaved);
+    }
+
+    // Filter by nutrition ranges
+    if (Object.keys(nutritionFilters).length > 0) {
+      filtered = filtered.filter(recipe => {
+        if (!recipe.nutrition) return false;
+
+        for (const [field, range] of Object.entries(nutritionFilters) as [keyof NutritionFilter, {min?: number; max?: number}][]) {
+          if (!range || (range.min === undefined && range.max === undefined)) continue;
+
+          const value = Number(recipe.nutrition[field]);
+          if (isNaN(value) || value === 0) return false; // Exclude recipes without data for this field
+
+          if (range.min !== undefined && value < range.min) return false;
+          if (range.max !== undefined && value > range.max) return false;
+        }
+
+        return true;
+      });
+    }
+
+    // Sort by likes
+    if (likesSortOrder !== 'none') {
       filtered = filtered.sort((a, b) => {
-        const dateA = new Date(a.dateUpdated || a.dateCreated || 0).getTime();
-        const dateB = new Date(b.dateUpdated || b.dateCreated || 0).getTime();
-        return dateB - dateA;
-      }).slice(0, 10);
-    }
-
-    // Filter by saved
-    if (checkedSaved) {
-      filtered = filtered.filter(recipe => recipe.isSaved || recipe.status === 'published');
-    }
-
-    // Filter by nutrition (placeholder - can be enhanced)
-    if (checkedNutrition) {
-      // For now, just pass through - can be enhanced with actual nutrition filtering
+        const likesA = a.likesCount || 0;
+        const likesB = b.likesCount || 0;
+        return likesSortOrder === 'asc' ? likesA - likesB : likesB - likesA;
+      });
     }
 
     setRecipes(filtered);
-  }, [checkedTagIds, filterMatchMode, checkedNutrition, checkedTopLiked, checkedSaved, allRecipes, user, hasSearched]);
+  }, [checkedTagIds, tagMatchMode, nutritionFilters, likesSortOrder, showSavedOnly, allRecipes, user, hasSearched]);
 
   // Update recipes when likes/saves change
   useEffect(() => {
@@ -345,41 +367,30 @@ export default function App() {
     );
   };
 
-  const handleFilterMatchModeChange = (mode: 'any' | 'all') => {
-    setFilterMatchMode(mode);
-  };
-
-  const handleNutritionToggle = () => {
-    setHasSearched(false);
-    setSearchQuery("");
-    setSearchResults([]);
-    setCheckedNutrition(prev => !prev);
-  };
-
-  const handleTopLikedToggle = () => {
-    setHasSearched(false);
-    setSearchQuery("");
-    setSearchResults([]);
-    setCheckedTopLiked(prev => !prev);
-  };
-
-  const handleSavedToggle = () => {
-    setHasSearched(false);
-    setSearchQuery("");
-    setSearchResults([]);
-    setCheckedSaved(prev => !prev);
-  };
-
-  const handleClearFilters = () => {
+  const handleTagsClear = () => {
     setCheckedTagIds([]);
-    setFilterMatchMode('any');
-    setCheckedNutrition(false);
-    setCheckedTopLiked(false);
-    setCheckedSaved(false);
-    setActiveFilter(null);
+  };
+
+  const handleTagMatchModeChange = (mode: 'any' | 'all') => {
+    setTagMatchMode(mode);
+  };
+
+  const handleNutritionFilterChange = (filters: NutritionFilter) => {
     setHasSearched(false);
     setSearchQuery("");
     setSearchResults([]);
+    setNutritionFilters(filters);
+  };
+
+  const handleLikesSortChange = (order: 'none' | 'asc' | 'desc') => {
+    setLikesSortOrder(order);
+  };
+
+  const handleSavedOnlyToggle = () => {
+    setHasSearched(false);
+    setSearchQuery("");
+    setSearchResults([]);
+    setShowSavedOnly(prev => !prev);
   };
 
   const hasAnyNutrition =
@@ -401,25 +412,11 @@ export default function App() {
             <h1 className="text-3xl font-bold text-black">Recipes</h1>
           </div>
           <div className="flex items-center gap-3">
-            <RecipeActionsDropdown 
+            <RecipeActionsDropdown
               onAddRecipe={handleOpenCreateModal}
               onEditRecipe={handleOpenEditModal}
             />
-            <FiltersDropdown
-              checkedTagIds={checkedTagIds}
-              checkedNutrition={checkedNutrition}
-              checkedTopLiked={checkedTopLiked}
-              checkedSaved={checkedSaved}
-              filterMatchMode={filterMatchMode}
-              onTagToggle={handleTagToggle}
-              onNutritionToggle={handleNutritionToggle}
-              onTopLikedToggle={handleTopLikedToggle}
-              onSavedToggle={handleSavedToggle}
-              onFilterMatchModeChange={handleFilterMatchModeChange}
-              onClearFilters={handleClearFilters}
-            />
-            
-            
+
             {/* User Info & Logout */}
             <div className="flex items-center gap-2 pl-3 border-l-2 border-gray-300">
               {loading ? (
@@ -450,6 +447,21 @@ export default function App() {
             </div>
           </div>
         </div>
+
+        {/* Filter Bar */}
+        <FilterBar
+          checkedTagIds={checkedTagIds}
+          tagMatchMode={tagMatchMode}
+          nutritionFilters={nutritionFilters}
+          likesSortOrder={likesSortOrder}
+          showSavedOnly={showSavedOnly}
+          onTagToggle={handleTagToggle}
+          onTagsClear={handleTagsClear}
+          onTagMatchModeChange={handleTagMatchModeChange}
+          onNutritionFilterChange={handleNutritionFilterChange}
+          onLikesSortChange={handleLikesSortChange}
+          onSavedOnlyToggle={handleSavedOnlyToggle}
+        />
 
         {/* Search Bar */}
         <div className="relative">

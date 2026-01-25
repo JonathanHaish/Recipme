@@ -120,7 +120,7 @@ export function FiltersDropdown({
           onCheckedChange={onNutritionToggle}
           className="cursor-pointer focus:bg-gray-100 text-black"
         >
-          Nutritional value
+          Has nutrition data
         </DropdownMenuCheckboxItem>
         
         <DropdownMenuCheckboxItem
