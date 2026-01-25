@@ -409,5 +409,5 @@ export const recipesAPI = {
   },
 };
 
-export type { Ingredient, NutritionData, FrontendRecipe, BackendRecipe, Tag, RecipeNutrition };
+export type { Ingredient, NutritionData, FrontendRecipe, BackendRecipe, RecipeNutrition };
 

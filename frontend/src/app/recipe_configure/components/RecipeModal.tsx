@@ -84,7 +84,6 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
       });
       setNewIngredientName("");
       setNewIngredientAmount("");
-      setNewIngredientUnit("");
       setIsIngredientValid(false);
       setSelectedIngredientData(null);
       setSubmitError(null);
@@ -124,7 +123,6 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
     });
     setNewIngredientName("");
     setNewIngredientAmount("");
-    setNewIngredientUnit("");
     setIsIngredientValid(false);
     setSubmitError(null);
     // Reset file input if it exists

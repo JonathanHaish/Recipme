@@ -11,9 +11,12 @@ RUN rm -rf node_modules package-lock.json
 
 RUN npm install --legacy-peer-deps
 
-
 COPY ./src .
+
+# Build the Next.js production bundle
+RUN npm run build
 
 EXPOSE 3000
 
-CMD ["npm", "run", "dev"]
+# Run in production mode
+CMD ["npm", "start"]
