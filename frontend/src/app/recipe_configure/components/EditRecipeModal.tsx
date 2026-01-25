@@ -90,12 +90,12 @@ export function EditRecipeModal({
       onClick={onClose}
     >
       <div
-        className="relative z-[10000] w-full max-w-4xl rounded-xl border-2 border-black bg-white shadow-xl max-h-[90vh] overflow-hidden flex flex-col"
+        className="relative z-[10000] w-full max-w-full sm:max-w-4xl rounded-xl border-2 border-black bg-white shadow-xl max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between border-b-2 border-black px-5 py-4">
-          <h2 className="text-xl font-bold text-black">
+        <div className="flex items-center justify-between border-b-2 border-black px-4 sm:px-5 py-3 sm:py-4">
+          <h2 className="text-lg sm:text-xl font-bold text-black">
             {isAdmin ? 'Edit Recipe (Admin)' : 'Edit Your Recipe'}
           </h2>
           <button
@@ -108,7 +108,7 @@ export function EditRecipeModal({
         </div>
 
         {/* Modal Content */}
-        <div className="flex-1 overflow-y-auto px-5 py-4">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-3 sm:py-4">
           {userRecipes.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-lg text-gray-600 mb-2">No recipes to edit</p>
@@ -117,8 +117,8 @@ export function EditRecipeModal({
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
+            <div className="overflow-x-auto -mx-2 sm:mx-0">
+              <table className="w-full border-collapse min-w-[640px]">
                 <thead>
                   <tr className="border-b-2 border-black">
                     <th className="text-left px-4 py-3 text-sm font-bold text-black w-12">
@@ -138,9 +138,9 @@ export function EditRecipeModal({
                     </th>
                     <th className="text-left px-4 py-3 text-sm font-bold text-black">ID</th>
                     <th className="text-left px-4 py-3 text-sm font-bold text-black">Name</th>
-                    <th className="text-left px-4 py-3 text-sm font-bold text-black">Type</th>
+                    <th className="text-left px-4 py-3 text-sm font-bold text-black hidden sm:table-cell">Type</th>
                     <th className="text-left px-4 py-3 text-sm font-bold text-black">Ingredients</th>
-                    <th className="text-left px-4 py-3 text-sm font-bold text-black">Updated</th>
+                    <th className="text-left px-4 py-3 text-sm font-bold text-black hidden sm:table-cell">Updated</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -163,9 +163,9 @@ export function EditRecipeModal({
                       </td>
                       <td className="px-4 py-3 text-sm text-black">{recipe.id}</td>
                       <td className="px-4 py-3 text-sm font-medium text-black">{recipe.name}</td>
-                      <td className="px-4 py-3 text-sm text-black capitalize">{recipe.type}</td>
+                      <td className="px-4 py-3 text-sm text-black capitalize hidden sm:table-cell">{recipe.type}</td>
                       <td className="px-4 py-3 text-sm text-black">{recipe.ingredients.length}</td>
-                      <td className="px-4 py-3 text-sm text-black">{recipe.dateUpdated || "N/A"}</td>
+                      <td className="px-4 py-3 text-sm text-black hidden sm:table-cell">{recipe.dateUpdated || "N/A"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -175,12 +175,12 @@ export function EditRecipeModal({
         </div>
 
         {/* Modal Footer */}
-        <div className="flex justify-between items-center border-t-2 border-black px-5 py-3">
+        <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2 sm:gap-0 border-t-2 border-black px-4 sm:px-5 py-3">
           <button
             type="button"
             onClick={handleDeleteClick}
             disabled={selectedRecipeIds.size === 0}
-            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-medium disabled:bg-gray-400 disabled:cursor-not-allowed min-h-[44px]"
           >
             <Trash2 className="w-4 h-4" />
             Delete ({selectedRecipeIds.size})
@@ -188,7 +188,7 @@ export function EditRecipeModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded bg-black px-5 py-2 text-white hover:bg-gray-800 font-medium"
+            className="rounded bg-black px-5 py-2 text-white hover:bg-gray-800 font-medium min-h-[44px]"
           >
             Close
           </button>
@@ -213,18 +213,18 @@ export function EditRecipeModal({
                 </p>
                 <p className="text-sm text-gray-600">This action cannot be undone.</p>
               </div>
-              <div className="flex justify-end gap-2 px-5 py-3 border-t-2 border-black">
+              <div className="flex flex-col sm:flex-row justify-end gap-2 px-5 py-3 border-t-2 border-black">
                 <button
                   type="button"
                   onClick={handleCancelDelete}
-                  className="px-4 py-2 border border-black rounded hover:bg-gray-100 text-black font-medium"
+                  className="px-4 py-2 border border-black rounded hover:bg-gray-100 text-black font-medium min-h-[44px]"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={handleConfirmDelete}
-                  className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-medium"
+                  className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-medium min-h-[44px]"
                 >
                   Delete
                 </button>

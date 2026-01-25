@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { X, ChevronDown } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,6 +48,7 @@ export function FilterBar({
   const [availableTags, setAvailableTags] = useState<Tag[]>([]);
   const [isLoadingTags, setIsLoadingTags] = useState(false);
   const [localNutritionFilters, setLocalNutritionFilters] = useState<NutritionFilter>(nutritionFilters);
+  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
   // Load available tags on mount
   useEffect(() => {
@@ -93,8 +94,19 @@ export function FilterBar({
   );
 
   return (
-    <div className="flex flex-wrap items-center gap-3 p-4 bg-gray-50 border-2 border-black rounded-lg mb-4">
-      {/* Tags Filter */}
+    <div className="bg-gray-50 border-2 border-black rounded-lg mb-4">
+      {/* Mobile Filter Toggle - Hidden on desktop */}
+      <button
+        onClick={() => setIsMobileFilterOpen(!isMobileFilterOpen)}
+        className="lg:hidden w-full flex items-center justify-between p-4 text-sm font-medium text-black"
+      >
+        <span>Filters {(checkedTagIds.length > 0 || hasActiveNutritionFilters || showSavedOnly) && `(Active)`}</span>
+        <ChevronDown className={`w-5 h-5 transition-transform ${isMobileFilterOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {/* Filter Content - Collapsed on mobile, always visible on desktop */}
+      <div className={`${isMobileFilterOpen ? 'flex' : 'hidden'} lg:flex flex-wrap items-center gap-3 p-4 ${isMobileFilterOpen ? 'border-t-2 border-black' : ''}`}>
+        {/* Tags Filter */}
       <div className="flex items-center gap-2">
         <span className="text-sm font-medium text-black">Tags:</span>
         <DropdownMenu>
@@ -353,6 +365,7 @@ export function FilterBar({
         >
           {showSavedOnly ? 'Saved only' : 'All recipes'}
         </button>
+      </div>
       </div>
     </div>
   );

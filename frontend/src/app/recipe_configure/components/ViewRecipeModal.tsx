@@ -66,12 +66,12 @@ export function ViewRecipeModal({
       onClick={onClose}
     >
       <div
-        className="relative z-[10000] w-full max-w-2xl rounded-xl border-2 border-black bg-white shadow-xl max-h-[90vh] overflow-hidden flex flex-col"
+        className="relative z-[10000] w-full max-w-full sm:max-w-2xl rounded-xl border-2 border-black bg-white shadow-xl max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between border-b-2 border-black px-5 py-4">
-          <h2 className="text-xl font-bold text-black">Recipe Details</h2>
+        <div className="flex items-center justify-between border-b-2 border-black px-4 sm:px-5 py-3 sm:py-4">
+          <h2 className="text-lg sm:text-xl font-bold text-black">Recipe Details</h2>
           <button
             type="button"
             onClick={onClose}
@@ -82,7 +82,7 @@ export function ViewRecipeModal({
         </div>
 
         {/* Modal Content */}
-        <div className="flex-1 overflow-y-auto px-5 py-4">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-3 sm:py-4">
           {/* Recipe Name */}
           <div className="mb-4">
             <h3 className="text-2xl font-bold text-black">{recipe.name}</h3>
@@ -108,7 +108,7 @@ export function ViewRecipeModal({
 
           {/* Recipe Image */}
           {recipe.image && (
-            <div className="mb-4 h-64 bg-white border-2 border-black rounded-lg overflow-hidden">
+            <div className="mb-4 h-48 sm:h-64 bg-white border-2 border-black rounded-lg overflow-hidden">
               <img
                 src={recipe.image}
                 alt={recipe.name}
@@ -207,13 +207,13 @@ export function ViewRecipeModal({
         </div>
 
         {/* Modal Footer */}
-        <div className="flex justify-between border-t-2 border-black px-5 py-3">
-          <div className="flex gap-2">
+        <div className="flex flex-col-reverse sm:flex-row justify-between gap-2 sm:gap-0 border-t-2 border-black px-4 sm:px-5 py-3">
+          <div className="flex flex-col sm:flex-row gap-2">
             {canModify && onEdit && (
               <button
                 type="button"
                 onClick={handleEdit}
-                className="flex items-center gap-2 rounded border-2 border-black bg-white px-4 py-2 text-black hover:bg-gray-100 font-medium"
+                className="flex items-center justify-center gap-2 rounded border-2 border-black bg-white px-4 py-2 text-black hover:bg-gray-100 font-medium min-h-[44px]"
               >
                 <Edit className="w-4 h-4" />
                 Edit
@@ -223,7 +223,7 @@ export function ViewRecipeModal({
               <button
                 type="button"
                 onClick={handleDelete}
-                className="flex items-center gap-2 rounded border-2 border-red-600 bg-white px-4 py-2 text-red-600 hover:bg-red-50 font-medium"
+                className="flex items-center justify-center gap-2 rounded border-2 border-red-600 bg-white px-4 py-2 text-red-600 hover:bg-red-50 font-medium min-h-[44px]"
               >
                 <Trash2 className="w-4 h-4" />
                 Delete
@@ -233,7 +233,7 @@ export function ViewRecipeModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded bg-black px-5 py-2 text-white hover:bg-gray-800 font-medium"
+            className="rounded bg-black px-5 py-2 text-white hover:bg-gray-800 font-medium min-h-[44px]"
           >
             Close
           </button>

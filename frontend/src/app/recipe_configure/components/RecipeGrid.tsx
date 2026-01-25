@@ -56,10 +56,10 @@ export function RecipeGrid({
 
   return (
     <div>
-      <h2 className="text-xl font-bold mb-6 text-black">
+      <h2 className="text-lg sm:text-xl font-bold mb-4 sm:mb-6 text-black">
         All Recipes ({filteredRecipes.length})
       </h2>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         {filteredRecipes.map((recipe) => (
           <RecipeCard
             key={recipe.id}

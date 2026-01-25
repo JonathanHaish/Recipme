@@ -35,10 +35,10 @@ export function RecipeCard({ recipe, onEdit, onViewDetails, onToggleLike, onTogg
           <div className="flex items-center gap-0.5">
             <button
               onClick={() => onToggleLike(recipe.id!)}
-              className="flex items-center gap-1"
+              className="flex items-center gap-1 p-1.5 hover:bg-gray-100 rounded"
             >
               <Heart
-                className={`w-3.5 h-3.5 text-black stroke-black ${
+                className={`w-4 h-4 sm:w-3.5 sm:h-3.5 text-black stroke-black ${
                   recipe.isLiked ? "fill-black" : ""
                 }`}
               />
@@ -47,9 +47,9 @@ export function RecipeCard({ recipe, onEdit, onViewDetails, onToggleLike, onTogg
               <span className="text-xs text-black">{recipe.likesCount}</span>
             )}
           </div>
-          <button onClick={() => onToggleSave(recipe.id!)}>
+          <button onClick={() => onToggleSave(recipe.id!)} className="p-1.5 hover:bg-gray-100 rounded">
             <Bookmark
-              className={`w-3.5 h-3.5 text-black stroke-black ${
+              className={`w-4 h-4 sm:w-3.5 sm:h-3.5 text-black stroke-black ${
                 recipe.isSaved ? "fill-black" : ""
               }`}
             />
@@ -57,9 +57,9 @@ export function RecipeCard({ recipe, onEdit, onViewDetails, onToggleLike, onTogg
           {isAdmin && (
             <button
               onClick={() => onEdit(recipe)}
-              className="ml-1"
+              className="ml-1 p-1.5 hover:bg-gray-100 rounded"
             >
-              <Edit className="w-3.5 h-3.5 text-black stroke-black" />
+              <Edit className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-black stroke-black" />
             </button>
           )}
         </div>
@@ -67,7 +67,7 @@ export function RecipeCard({ recipe, onEdit, onViewDetails, onToggleLike, onTogg
 
       {/* Image */}
       {recipe.image ? (
-        <div className="h-24 bg-white border-b border-black">
+        <div className="h-32 sm:h-24 bg-white border-b border-black">
           <img
             src={recipe.image}
             alt={recipe.name}
@@ -75,7 +75,7 @@ export function RecipeCard({ recipe, onEdit, onViewDetails, onToggleLike, onTogg
           />
         </div>
       ) : (
-        <div className="h-24 bg-white border-b border-black"></div>
+        <div className="h-32 sm:h-24 bg-white border-b border-black"></div>
       )}
 
       {/* Tags */}
@@ -119,7 +119,7 @@ export function RecipeCard({ recipe, onEdit, onViewDetails, onToggleLike, onTogg
         <button
           type="button"
           onClick={() => onViewDetails(recipe)}
-          className="w-full py-1.5 text-xs border border-black rounded hover:bg-gray-100 font-medium text-black"
+          className="w-full py-2 text-sm border border-black rounded hover:bg-gray-100 font-medium text-black min-h-[44px]"
         >
           View Details
         </button>

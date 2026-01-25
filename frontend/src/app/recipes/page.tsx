@@ -403,22 +403,22 @@ export default function App() {
 
 
   return (
-    <div className="flex-1 bg-gray-50 p-6" dir="ltr">
+    <div className="flex-1 bg-gray-50 p-4 sm:p-6" dir="ltr">
       {/* Header */}
       <div className="max-w-5xl mx-auto mb-8">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
-            <ChefHat className="w-10 h-10 text-black" />
-            <h1 className="text-3xl font-bold text-black">Recipes</h1>
+            <ChefHat className="w-8 h-8 sm:w-10 sm:h-10 text-black" />
+            <h1 className="text-2xl sm:text-3xl font-bold text-black">Recipes</h1>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
             <RecipeActionsDropdown
               onAddRecipe={handleOpenCreateModal}
               onEditRecipe={handleOpenEditModal}
             />
 
             {/* User Info & Logout */}
-            <div className="flex items-center gap-2 pl-3 border-l-2 border-gray-300">
+            <div className="flex items-center gap-2 sm:pl-3 sm:border-l-2 border-gray-300">
               {loading ? (
                 <div className="text-sm text-gray-600">Loading...</div>
               ) : user ? (
@@ -429,17 +429,17 @@ export default function App() {
                   </div>
                   <button
                     onClick={handleLogout}
-                    className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded hover:bg-gray-800 transition-colors"
+                    className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded hover:bg-gray-800 transition-colors min-h-[44px]"
                     title="Logout"
                   >
                     <LogOut className="w-4 h-4" />
-                    <span className="text-sm">Logout</span>
+                    <span className="hidden sm:inline text-sm">Logout</span>
                   </button>
                 </>
               ) : (
                 <button
                   onClick={() => router.push("/login")}
-                  className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800"
+                  className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800 min-h-[44px]"
                 >
                   Login
                 </button>
@@ -472,12 +472,12 @@ export default function App() {
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyPress={handleKeyPress}
             placeholder="Search recipes..."
-            className="w-full pl-10 pr-24 py-2 border border-black rounded text-black"
+            className="w-full pl-10 pr-24 py-3 sm:py-2 border border-black rounded text-black text-base min-h-[44px]"
           />
           <button
             onClick={handleSearch}
             disabled={isSearching}
-            className="absolute right-2 top-1/2 transform -translate-y-1/2 px-4 py-1 bg-black text-white rounded hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+            className="absolute right-2 top-1/2 transform -translate-y-1/2 px-4 py-1 bg-black text-white rounded hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed text-sm min-h-[36px]"
           >
             {isSearching ? "Searching..." : "Search"}
           </button>

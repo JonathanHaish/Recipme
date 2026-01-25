@@ -281,12 +281,12 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
       onClick={onClose}
     >
       <div
-        className="relative z-[10000] w-full max-w-2xl rounded-xl border-2 border-black bg-white shadow-xl max-h-[90vh] overflow-hidden flex flex-col"
+        className="relative z-[10000] w-full max-w-full sm:max-w-2xl rounded-xl border-2 border-black bg-white shadow-xl max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between border-b-2 border-black px-5 py-4">
-          <h2 className="text-xl font-bold text-black">
+        <div className="flex items-center justify-between border-b-2 border-black px-4 sm:px-5 py-3 sm:py-4">
+          <h2 className="text-lg sm:text-xl font-bold text-black">
             {mode === "create" ? "Create Recipe" : "Update Recipe"}
           </h2>
           <button
@@ -299,7 +299,7 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
         </div>
 
         {/* Modal Content */}
-        <div className="overflow-y-auto px-5 py-4 flex-1">
+        <div className="overflow-y-auto px-4 sm:px-5 py-3 sm:py-4 flex-1">
           <div className="space-y-6">
             {/* Recipe Name */}
             <div className="space-y-2">
@@ -308,7 +308,7 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
                 value={formData.name}
                 onChange={(e) => handleInputChange("name", e.target.value)}
                 placeholder="Enter recipe name"
-                className="w-full px-3 py-2 border border-black rounded text-black"
+                className="w-full px-3 py-2 border border-black rounded text-black text-base min-h-[44px]"
               />
             </div>
 
@@ -383,7 +383,7 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
                 onChange={(e) => handleInputChange("instructions", e.target.value)}
                 placeholder="Enter recipe instructions..."
                 rows={6}
-                className="w-full px-3 py-2 border border-black rounded text-black resize-y"
+                className="w-full px-3 py-2 border border-black rounded text-black text-base resize-y"
               />
             </div>
 
@@ -394,7 +394,7 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="px-4 py-2 border border-black rounded hover:bg-gray-100 text-black flex items-center gap-2"
+                  className="px-4 py-2 border border-black rounded hover:bg-gray-100 text-black flex items-center gap-2 min-h-[44px]"
                 >
                   <Upload className="size-4" />
                   Upload Image
@@ -456,14 +456,14 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
                     value={newIngredientAmount}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewIngredientAmount(e.target.value)}
                     placeholder="Amount"
-                    className="w-full px-3 py-2 border border-black rounded text-black"
+                    className="w-full px-3 py-2 border border-black rounded text-black text-base min-h-[44px]"
                   />
                   <span className="text-xs text-gray-600 mt-1 text-center">grams (g)</span>
                 </div>
                 <button
                   type="button"
                   onClick={handleAddIngredient}
-                  className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800 flex items-center gap-2"
+                  className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800 flex items-center gap-2 min-h-[44px]"
                 >
                   <Plus className="size-4" />
                   Add
@@ -505,7 +505,7 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
 
         {/* Error Message */}
         {submitError && (
-          <div className="px-5 py-2 border-t-2 border-black">
+          <div className="px-4 sm:px-5 py-2 border-t-2 border-black">
             <div className="text-red-600 text-sm bg-red-50 border border-red-200 rounded p-2">
               {submitError}
             </div>
@@ -513,12 +513,12 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
         )}
 
         {/* Modal Footer */}
-        <div className="flex justify-end gap-3 border-t-2 border-black px-5 py-3">
+        <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 border-t-2 border-black px-4 sm:px-5 py-3">
           <button
             type="button"
             onClick={handleCancel}
             disabled={isSubmitting}
-            className="px-5 py-2 border border-black rounded hover:bg-gray-100 text-black font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-5 py-2 border border-black rounded hover:bg-gray-100 text-black font-medium disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
           >
             Cancel
           </button>
@@ -526,7 +526,7 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
             type="button"
             onClick={handleSubmit}
             disabled={isSubmitting}
-            className="px-5 py-2 bg-black text-white rounded hover:bg-gray-800 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-5 py-2 bg-black text-white rounded hover:bg-gray-800 font-medium disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
           >
             {isSubmitting 
               ? (mode === "create" ? "Creating..." : "Updating...") 
