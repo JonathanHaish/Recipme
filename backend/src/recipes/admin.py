@@ -78,6 +78,6 @@ class RecipeLikesAdmin(admin.ModelAdmin):
 
 @admin.register(RecipeNutrition)
 class RecipeNutritionAdmin(admin.ModelAdmin):
-    list_display = ['recipe', 'calories_kcal', 'protein_g', 'carbs_g']
+    list_display = ['recipe', 'calories_kcal', 'protein_g', 'fat_g', 'carbs_g', 'fiber_g', 'sugars_g']
     search_fields = ['recipe__title']
     readonly_fields = ['updated_at']

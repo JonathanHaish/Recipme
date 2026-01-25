@@ -116,9 +116,10 @@ interface RecipeIngredient {
 interface RecipeNutrition {
   calories_kcal?: number | string; // Django Decimal serializes as string
   protein_g?: number | string;
+  fat_g?: number | string;
   carbs_g?: number | string;
   fiber_g?: number | string;
-  sodium_mg?: number | string;
+  sugars_g?: number | string;
   updated_at?: string;
 }
 

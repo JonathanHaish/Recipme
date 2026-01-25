@@ -149,9 +149,10 @@ class RecipeNutrition(models.Model):
     recipe = models.OneToOneField(Recipes, on_delete=models.CASCADE, primary_key=True, related_name='nutrition')
     calories_kcal = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
     protein_g = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
+    fat_g = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
     carbs_g = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
     fiber_g = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
-    sodium_mg = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
+    sugars_g = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

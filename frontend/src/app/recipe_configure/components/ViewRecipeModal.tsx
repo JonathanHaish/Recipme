@@ -98,34 +98,46 @@ export function ViewRecipeModal({ isOpen, onClose, recipe }: ViewRecipeModalProp
           </div>
 
           {/* Nutrition Information */}
-          {recipe.nutrition && (recipe.nutrition.calories_kcal || recipe.nutrition.protein_g || recipe.nutrition.carbs_g || recipe.nutrition.fiber_g) && (
+          {recipe.nutrition && (
             <div className="mb-4">
               <h4 className="text-lg font-bold text-black mb-2">Nutrition Information</h4>
               <div className="grid grid-cols-2 gap-3 p-3 border-2 border-black rounded-lg bg-gray-50">
-                {recipe.nutrition.calories_kcal !== undefined && recipe.nutrition.calories_kcal !== null && (
-                  <div className="flex flex-col">
-                    <span className="text-xs text-gray-600 font-medium">Calories</span>
-                    <span className="text-lg font-bold text-black">{Math.round(Number(recipe.nutrition.calories_kcal))} kcal</span>
-                  </div>
-                )}
-                {recipe.nutrition.protein_g !== undefined && recipe.nutrition.protein_g !== null && (
-                  <div className="flex flex-col">
-                    <span className="text-xs text-gray-600 font-medium">Protein</span>
-                    <span className="text-lg font-bold text-black">{Number(recipe.nutrition.protein_g).toFixed(1)} g</span>
-                  </div>
-                )}
-                {recipe.nutrition.carbs_g !== undefined && recipe.nutrition.carbs_g !== null && (
-                  <div className="flex flex-col">
-                    <span className="text-xs text-gray-600 font-medium">Carbohydrates</span>
-                    <span className="text-lg font-bold text-black">{Number(recipe.nutrition.carbs_g).toFixed(1)} g</span>
-                  </div>
-                )}
-                {recipe.nutrition.fiber_g !== undefined && recipe.nutrition.fiber_g !== null && (
-                  <div className="flex flex-col">
-                    <span className="text-xs text-gray-600 font-medium">Fiber</span>
-                    <span className="text-lg font-bold text-black">{Number(recipe.nutrition.fiber_g).toFixed(1)} g</span>
-                  </div>
-                )}
+                <div className="flex flex-col">
+                  <span className="text-xs text-gray-600 font-medium">Calories</span>
+                  <span className="text-lg font-bold text-black">
+                    {recipe.nutrition.calories_kcal ? Math.round(Number(recipe.nutrition.calories_kcal)) : 0} kcal
+                  </span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs text-gray-600 font-medium">Protein</span>
+                  <span className="text-lg font-bold text-black">
+                    {recipe.nutrition.protein_g ? Number(recipe.nutrition.protein_g).toFixed(1) : '0.0'} g
+                  </span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs text-gray-600 font-medium">Fat</span>
+                  <span className="text-lg font-bold text-black">
+                    {recipe.nutrition.fat_g ? Number(recipe.nutrition.fat_g).toFixed(1) : '0.0'} g
+                  </span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs text-gray-600 font-medium">Carbohydrates</span>
+                  <span className="text-lg font-bold text-black">
+                    {recipe.nutrition.carbs_g ? Number(recipe.nutrition.carbs_g).toFixed(1) : '0.0'} g
+                  </span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs text-gray-600 font-medium">Fiber</span>
+                  <span className="text-lg font-bold text-black">
+                    {recipe.nutrition.fiber_g ? Number(recipe.nutrition.fiber_g).toFixed(1) : '0.0'} g
+                  </span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs text-gray-600 font-medium">Sugars</span>
+                  <span className="text-lg font-bold text-black">
+                    {recipe.nutrition.sugars_g ? Number(recipe.nutrition.sugars_g).toFixed(1) : '0.0'} g
+                  </span>
+                </div>
               </div>
             </div>
           )}

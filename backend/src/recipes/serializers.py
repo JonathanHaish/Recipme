@@ -13,7 +13,7 @@ class TagSerializer(serializers.ModelSerializer):
 class RecipeNutritionSerializer(serializers.ModelSerializer):
     class Meta:
         model = RecipeNutrition
-        fields = ['calories_kcal', 'protein_g', 'carbs_g', 'fiber_g', 'sodium_mg', 'updated_at']
+        fields = ['calories_kcal', 'protein_g', 'fat_g', 'carbs_g', 'fiber_g', 'sugars_g', 'updated_at']
 
 class RecipeIngredientSerializer(serializers.ModelSerializer):
     # מאפשר לקבל את שם המרכיב בטקסט במקום ID
@@ -170,8 +170,10 @@ class RecipeSerializer(serializers.ModelSerializer):
                 defaults={
                     'calories_kcal': Decimal(str(round(total_calories, 3))) if total_calories > 0 else None,
                     'protein_g': Decimal(str(round(total_protein, 3))) if total_protein > 0 else None,
+                    'fat_g': Decimal(str(round(total_fat, 3))) if total_fat > 0 else None,
                     'carbs_g': Decimal(str(round(total_carbs, 3))) if total_carbs > 0 else None,
                     'fiber_g': Decimal(str(round(total_fiber, 3))) if total_fiber > 0 else None,
+                    'sugars_g': Decimal(str(round(total_sugars, 3))) if total_sugars > 0 else None,
                 }
             )
         except Exception as e:

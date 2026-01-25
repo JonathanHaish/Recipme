@@ -102,12 +102,11 @@ export function RecipeCard({ recipe, onEdit, onViewDetails, onToggleLike, onTogg
         <p className="text-xs text-gray-600 mt-1">
           <span className="font-medium">Ingredients:</span> {recipe.ingredients.length}
         </p>
-        {recipe.nutrition && recipe.nutrition.calories_kcal && (
+        {recipe.nutrition && (
           <p className="text-xs text-gray-600 mt-0.5">
-            <span className="font-medium">Calories:</span> {Math.round(Number(recipe.nutrition.calories_kcal))} kcal
-            {recipe.nutrition.protein_g && (
-              <span className="ml-2"><span className="font-medium">Protein:</span> {Number(recipe.nutrition.protein_g).toFixed(1)}g</span>
-            )}
+            <span className="font-medium">Calories:</span> {recipe.nutrition.calories_kcal ? Math.round(Number(recipe.nutrition.calories_kcal)) : 0} kcal
+            <span className="ml-2"><span className="font-medium">Protein:</span> {recipe.nutrition.protein_g ? Number(recipe.nutrition.protein_g).toFixed(1) : '0.0'}g</span>
+            <span className="ml-2"><span className="font-medium">Fat:</span> {recipe.nutrition.fat_g ? Number(recipe.nutrition.fat_g).toFixed(1) : '0.0'}g</span>
           </p>
         )}
         <p className="text-xs text-gray-600 mt-0.5">
