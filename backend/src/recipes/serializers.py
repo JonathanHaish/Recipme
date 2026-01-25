@@ -111,11 +111,17 @@ class RecipeSerializer(serializers.ModelSerializer):
         if not primary_image:
             primary_image = obj.images.first()
 
-        if primary_image and primary_image.image:
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(primary_image.image.url)
-            return primary_image.image.url
+        if primary_image:
+            # Check for uploaded image file first
+            if primary_image.image:
+                request = self.context.get('request')
+                if request:
+                    return request.build_absolute_uri(primary_image.image.url)
+                return primary_image.image.url
+            # Fall back to image_url for external URLs
+            elif primary_image.image_url:
+                return primary_image.image_url
+
         return None
 
     def _handle_image(self, recipe, image_data):
