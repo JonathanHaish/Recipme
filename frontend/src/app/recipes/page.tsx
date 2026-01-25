@@ -144,10 +144,10 @@ export default function App() {
   useEffect(() => {
     const fetchRecipes = async () => {
       if (!user) return; // Only fetch if user is logged in
-      
+
       setLoadingRecipes(true);
       try {
-        const backendRecipes = await recipesAPI.getMyRecipes();
+        const backendRecipes = await recipesAPI.getAllRecipes();
         // Transform backend format to frontend format
         const frontendRecipes = transformBackendToFrontend(backendRecipes);
         setAllRecipes(frontendRecipes);
@@ -335,7 +335,7 @@ export default function App() {
   const refreshRecipes = async () => {
     if (user) {
       try {
-        const backendRecipes = await recipesAPI.getMyRecipes();
+        const backendRecipes = await recipesAPI.getAllRecipes();
         const frontendRecipes = transformBackendToFrontend(backendRecipes);
         setAllRecipes(frontendRecipes);
         // Filters will be applied via useEffect

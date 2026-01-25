@@ -268,6 +268,20 @@ export const recipesAPI = {
   },
 
   /**
+   * Get all recipes in the system
+   * @returns Array of all recipes
+   */
+  getAllRecipes: async (): Promise<BackendRecipe[]> => {
+    try {
+      // Use apiClient for authenticated requests
+      return await apiClient.request<BackendRecipe[]>(`${API_URL}/recipes/recipes/`);
+    } catch (error) {
+      console.error('Error fetching recipes:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Get user's recipes
    * @returns Array of user's recipes
    */

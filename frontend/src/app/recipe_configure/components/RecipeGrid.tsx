@@ -57,7 +57,7 @@ export function RecipeGrid({
   return (
     <div>
       <h2 className="text-xl font-bold mb-6 text-black">
-        My Recipes ({filteredRecipes.length})
+        All Recipes ({filteredRecipes.length})
       </h2>
       <div className="grid grid-cols-3 gap-4">
         {filteredRecipes.map((recipe) => (
