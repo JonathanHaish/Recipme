@@ -1,5 +1,6 @@
-import { Tag, RecipeNutrition } from "@/lib/api";
-import { Edit, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { Tag, RecipeNutrition, recipesAPI } from "@/lib/api";
+import { Edit, Trash2, RefreshCw } from "lucide-react";
 
 const getYouTubeEmbedUrl = (url: string): string => {
   const videoIdMatch = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
@@ -37,6 +38,7 @@ interface ViewRecipeModalProps {
   isAdmin?: boolean;
   onEdit?: (recipe: Recipe) => void;
   onDelete?: (recipeId: string) => void;
+  onNutritionUpdate?: (recipeId: string, nutrition: RecipeNutrition | null) => void;
 }
 
 export function ViewRecipeModal({
@@ -46,8 +48,13 @@ export function ViewRecipeModal({
   currentUserId,
   isAdmin = false,
   onEdit,
-  onDelete
+  onDelete,
+  onNutritionUpdate
 }: ViewRecipeModalProps) {
+  const [isRecalculating, setIsRecalculating] = useState(false);
+  const [recalculateError, setRecalculateError] = useState<string | null>(null);
+  const [recalculateSuccess, setRecalculateSuccess] = useState(false);
+
   if (!isOpen || !recipe) return null;
 
   // Check if current user can edit/delete (owner or admin)
@@ -64,6 +71,31 @@ export function ViewRecipeModal({
     if (onDelete && recipe.id && confirm('Are you sure you want to delete this recipe?')) {
       onDelete(recipe.id);
       onClose();
+    }
+  };
+
+  const handleRecalculateNutrition = async () => {
+    if (!recipe.id) return;
+
+    setIsRecalculating(true);
+    setRecalculateError(null);
+    setRecalculateSuccess(false);
+
+    try {
+      const result = await recipesAPI.recalculateNutrition(Number(recipe.id));
+      setRecalculateSuccess(true);
+
+      // Notify parent component to update the recipe data
+      if (onNutritionUpdate && result.nutrition) {
+        onNutritionUpdate(recipe.id, result.nutrition);
+      }
+
+      // Clear success message after 3 seconds
+      setTimeout(() => setRecalculateSuccess(false), 3000);
+    } catch (error: any) {
+      setRecalculateError(error.message || 'Failed to recalculate nutrition data');
+    } finally {
+      setIsRecalculating(false);
     }
   };
 
@@ -197,6 +229,31 @@ export function ViewRecipeModal({
                   </span>
                 </div>
               </div>
+
+              {/* Recalculate button (only for recipe owner or admin) */}
+              {canModify && (
+                <div className="mt-3">
+                  {recalculateSuccess && (
+                    <div className="mb-2 p-2 bg-green-50 border border-green-200 rounded text-sm text-green-700">
+                      ✓ Nutrition data updated successfully!
+                    </div>
+                  )}
+                  {recalculateError && (
+                    <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+                      {recalculateError}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleRecalculateNutrition}
+                    disabled={isRecalculating}
+                    className="flex items-center gap-2 px-3 py-2 border border-black rounded text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${isRecalculating ? 'animate-spin' : ''}`} />
+                    {isRecalculating ? 'Recalculating...' : 'Recalculate Nutrition'}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

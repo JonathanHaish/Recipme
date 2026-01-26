@@ -256,6 +256,45 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
         return Response({'saved': True})
 
+    @action(detail=True, methods=['post'])
+    def recalculate_nutrition(self, request, pk=None):
+        """
+        Recalculate nutrition data for a recipe.
+        Only the recipe owner or staff can trigger this.
+        """
+        recipe = self.get_object()
+
+        # Check permissions - must be owner or staff
+        if recipe.author != request.user and not request.user.is_staff:
+            return Response(
+                {'error': 'You do not have permission to recalculate nutrition for this recipe'},
+                status=403
+            )
+
+        # Use the serializer's method to recalculate nutrition
+        serializer = self.get_serializer()
+        try:
+            serializer._calculate_recipe_nutrition(recipe)
+            # Refresh the recipe to get updated nutrition data
+            recipe.refresh_from_db()
+            return Response({
+                'message': 'Nutrition data recalculated successfully',
+                'nutrition': {
+                    'calories_kcal': str(recipe.nutrition.calories_kcal) if recipe.nutrition else None,
+                    'protein_g': str(recipe.nutrition.protein_g) if recipe.nutrition else None,
+                    'fat_g': str(recipe.nutrition.fat_g) if recipe.nutrition else None,
+                    'carbs_g': str(recipe.nutrition.carbs_g) if recipe.nutrition else None,
+                    'fiber_g': str(recipe.nutrition.fiber_g) if recipe.nutrition else None,
+                    'sugars_g': str(recipe.nutrition.sugars_g) if recipe.nutrition else None,
+                } if recipe.nutrition else None
+            })
+        except Exception as e:
+            logger.error(f"Failed to recalculate nutrition for recipe {recipe.id}: {str(e)}")
+            return Response(
+                {'error': f'Failed to recalculate nutrition: {str(e)}'},
+                status=500
+            )
+
     # Get personalized recipes based on user profile
     @action(detail=False, methods=['get'])
     def personalized(self, request):

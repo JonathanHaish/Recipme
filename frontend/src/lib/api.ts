@@ -431,6 +431,23 @@ export const recipesAPI = {
       throw error;
     }
   },
+
+  /**
+   * Recalculate nutrition data for a recipe
+   * @param recipeId - Recipe ID
+   * @returns Updated nutrition data
+   */
+  recalculateNutrition: async (recipeId: number): Promise<{ message: string; nutrition: RecipeNutrition | null }> => {
+    try {
+      return await apiClient.request<{ message: string; nutrition: RecipeNutrition | null }>(
+        `${API_URL}/recipes/recipes/${recipeId}/recalculate_nutrition/`,
+        { method: 'POST' }
+      );
+    } catch (error) {
+      console.error('Error recalculating nutrition:', error);
+      throw error;
+    }
+  },
 };
 
 export type { Ingredient, NutritionData, FrontendRecipe, BackendRecipe, RecipeNutrition };
