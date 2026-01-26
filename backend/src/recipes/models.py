@@ -1,5 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User  # Using Django's built-in User model
+from django.core.exceptions import ValidationError
+import re
 
 # ----------------------------------------------------------------------
 # recipe_tags table (tags for recipes)
@@ -62,6 +64,7 @@ class Recipes(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)  # Index for ordering by date
     updated_at = models.DateTimeField(auto_now=True)
     instructions = models.TextField(blank=True, default='')
+    youtube_url = models.URLField(max_length=500, null=True, blank=True, help_text="YouTube video URL (optional)")
 
     # Many-to-many relationship with Tags
     tags = models.ManyToManyField('Tag', related_name='recipes', blank=True)
@@ -78,8 +81,20 @@ class Recipes(models.Model):
         verbose_name_plural = "Recipes"
         ordering = ['-created_at']  # Newest recipes first
 
+    def clean(self):
+        if self.youtube_url:
+            youtube_regex = r'(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})'
+            match = re.search(youtube_regex, self.youtube_url)
+            if not match:
+                raise ValidationError({'youtube_url': 'Invalid YouTube URL'})
 
-    
+    def get_youtube_video_id(self):
+        if not self.youtube_url:
+            return None
+        youtube_regex = r'(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})'
+        match = re.search(youtube_regex, self.youtube_url)
+        return match.group(1) if match else None
+
     def __str__(self):
         return self.title
 

@@ -149,6 +149,7 @@ interface BackendRecipe {
   nutrition?: RecipeNutrition;
   image_url?: string;  // Primary image URL
   images?: Array<{id: number; image: string; image_url: string; is_primary: boolean}>;
+  youtube_url?: string;
 }
 
 interface FrontendRecipe {
@@ -166,6 +167,7 @@ interface FrontendRecipe {
   }>;
   tags?: Tag[];
   nutrition?: RecipeNutrition;
+  youtube_url?: string;
 }
 
 export const recipesAPI = {
@@ -204,6 +206,11 @@ export const recipesAPI = {
       // Add image if provided
       if (recipe.image) {
         backendRecipe.image = recipe.image;
+      }
+
+      // Add youtube_url if provided
+      if (recipe.youtube_url) {
+        backendRecipe.youtube_url = recipe.youtube_url;
       }
 
       // Debug: log what we're sending (excluding large image data)
@@ -260,6 +267,11 @@ export const recipesAPI = {
       // Add image if provided
       if (recipe.image) {
         backendRecipe.image = recipe.image;
+      }
+
+      // Add youtube_url if provided
+      if (recipe.youtube_url) {
+        backendRecipe.youtube_url = recipe.youtube_url;
       }
 
       // Use apiClient for authenticated requests

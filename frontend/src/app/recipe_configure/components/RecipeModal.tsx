@@ -8,6 +8,12 @@ import { X, Plus, Upload, Trash2, Image as ImageIcon } from "lucide-react";
 import {FoodSearch} from "./searchIngredients"
 import { recipesAPI, tagsAPI, Tag } from "@/lib/api";
 
+const isValidYouTubeUrl = (url: string): boolean => {
+  if (!url) return true; // Empty is valid (optional field)
+  const youtubeRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
+  return youtubeRegex.test(url);
+};
+
 interface Ingredient {
   id: string;
   name: string;
@@ -24,6 +30,7 @@ interface Recipe {
   image?: string;
   ingredients: Ingredient[];
   tags?: Tag[];
+  youtube_url?: string;
 }
 
 interface RecipeModalProps {
@@ -42,6 +49,7 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
     image: recipe?.image || "",
     ingredients: recipe?.ingredients || [],
     tags: recipe?.tags || [],
+    youtube_url: recipe?.youtube_url || "",
   });
 
   const [availableTags, setAvailableTags] = useState<Tag[]>([]);
@@ -81,6 +89,7 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
         image: "",
         ingredients: [],
         tags: [],
+        youtube_url: "",
       });
       setNewIngredientName("");
       setNewIngredientAmount("");
@@ -96,6 +105,7 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
         image: recipe.image || "",
         ingredients: recipe.ingredients || [],
         tags: recipe.tags || [],
+        youtube_url: recipe.youtube_url || "",
       });
     }
   }, [isOpen, mode, recipe]);
@@ -108,6 +118,7 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
       image: "",
       ingredients: [],
       tags: [],
+      youtube_url: "",
     });
     setNewIngredientName("");
     setNewIngredientAmount("");
@@ -385,6 +396,33 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
                 rows={6}
                 className="w-full px-3 py-2 border border-black rounded text-black text-base resize-y"
               />
+            </div>
+
+            {/* YouTube Video URL */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-black">
+                YouTube Video URL
+                <span className="text-gray-500 font-normal ml-2">(Optional)</span>
+              </label>
+              <input
+                value={formData.youtube_url || ""}
+                onChange={(e) => handleInputChange("youtube_url", e.target.value)}
+                placeholder="https://www.youtube.com/watch?v=..."
+                className="w-full px-3 py-2 border border-black rounded text-black text-base min-h-[44px]"
+              />
+              <p className="text-xs text-gray-600">
+                Add a YouTube video tutorial URL
+              </p>
+              {formData.youtube_url && isValidYouTubeUrl(formData.youtube_url) && (
+                <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-xs text-green-700">
+                  ✓ Valid YouTube URL
+                </div>
+              )}
+              {formData.youtube_url && !isValidYouTubeUrl(formData.youtube_url) && (
+                <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700">
+                  ⚠ Please check the YouTube URL format
+                </div>
+              )}
             </div>
 
             {/* Image Upload */}

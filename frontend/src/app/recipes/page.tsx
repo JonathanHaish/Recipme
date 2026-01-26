@@ -85,6 +85,7 @@ export default function App() {
       isSaved: recipe.is_saved || false,
       likesCount: recipe.likes_count || 0,
       nutrition: recipe.nutrition,
+      youtube_url: recipe.youtube_url,
     }));
   };
 

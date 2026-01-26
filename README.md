@@ -68,6 +68,7 @@ User support/feedback system:
 - Search by title/description
 - Filter by tags (AND/OR modes)
 - Like and save recipes
+- YouTube video tutorial embedding (optional)
 - View other users' recipes (read-only)
 - Admin full access via Django admin panel
 
@@ -109,7 +110,7 @@ docker compose exec backend python manage.py populate_demo_data
 
 Creates:
 - 4 demo users (demo@example.com, chef@example.com, foodie@example.com, admin@example.com)
-- Multiple recipes with tags, ingredients, and nutrition data
+- 20+ recipes with tags, ingredients, nutrition data, and video tutorials
 - Sample likes and saves
 - Password for all users: `demo123`
 

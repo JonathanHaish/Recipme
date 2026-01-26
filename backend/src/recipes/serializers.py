@@ -88,7 +88,7 @@ class RecipeSerializer(serializers.ModelSerializer):
         fields = ['id', 'author', 'title', 'description', 'prep_time_minutes', 'cook_time_minutes',
                   'servings', 'status', 'instructions', 'ingredients', 'recipe_ingredients',
                   'tags', 'tag_ids', 'created_at', 'updated_at', 'likes_count', 'is_liked', 'is_saved',
-                  'nutrition', 'images', 'image_url', 'image']
+                  'nutrition', 'images', 'image_url', 'image', 'youtube_url']
     
     def get_likes_count(self, obj):
         return obj.likes.count()

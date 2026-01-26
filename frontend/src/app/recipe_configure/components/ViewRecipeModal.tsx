@@ -1,6 +1,12 @@
 import { Tag, RecipeNutrition } from "@/lib/api";
 import { Edit, Trash2 } from "lucide-react";
 
+const getYouTubeEmbedUrl = (url: string): string => {
+  const videoIdMatch = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
+  const videoId = videoIdMatch ? videoIdMatch[1] : '';
+  return `https://www.youtube.com/embed/${videoId}`;
+};
+
 interface Ingredient {
   id: string;
   name: string;
@@ -20,6 +26,7 @@ interface Recipe {
   dateCreated?: string;
   dateUpdated?: string;
   nutrition?: RecipeNutrition;
+  youtube_url?: string;
 }
 
 interface ViewRecipeModalProps {
@@ -117,6 +124,23 @@ export function ViewRecipeModal({
                 alt={recipe.title}
                 className="w-full h-full object-cover"
               />
+            </div>
+          )}
+
+          {/* YouTube Video */}
+          {recipe.youtube_url && (
+            <div className="mb-4">
+              <h4 className="text-lg font-bold text-black mb-2">Video Tutorial</h4>
+              <div className="relative w-full rounded-lg overflow-hidden border-2 border-black" style={{ paddingBottom: '56.25%' }}>
+                <iframe
+                  className="absolute top-0 left-0 w-full h-full"
+                  src={getYouTubeEmbedUrl(recipe.youtube_url)}
+                  title={`${recipe.title} video tutorial`}
+                  frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media"
+                  allowFullScreen
+                />
+              </div>
             </div>
           )}
 

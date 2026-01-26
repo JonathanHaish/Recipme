@@ -1,4 +1,4 @@
-import { Heart, Bookmark, Edit } from "lucide-react";
+import { Heart, Bookmark, Edit, Video } from "lucide-react";
 import { Tag, RecipeNutrition } from "@/lib/api";
 
 interface Recipe {
@@ -14,6 +14,7 @@ interface Recipe {
   isSaved?: boolean;
   likesCount?: number;
   nutrition?: RecipeNutrition;
+  youtube_url?: string;
 }
 
 interface RecipeCardProps {
@@ -67,15 +68,28 @@ export function RecipeCard({ recipe, onEdit, onViewDetails, onToggleLike, onTogg
 
       {/* Image */}
       {recipe.image ? (
-        <div className="h-32 sm:h-24 bg-white border-b border-black">
+        <div className="h-32 sm:h-24 bg-white border-b border-black relative">
           <img
             src={recipe.image}
             alt={recipe.title}
             className="w-full h-full object-cover"
           />
+          {recipe.youtube_url && (
+            <div className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded-md shadow-lg flex items-center gap-1">
+              <Video className="w-3.5 h-3.5" fill="white" />
+              <span className="text-xs font-semibold">VIDEO</span>
+            </div>
+          )}
         </div>
       ) : (
-        <div className="h-32 sm:h-24 bg-white border-b border-black"></div>
+        <div className="h-32 sm:h-24 bg-white border-b border-black relative">
+          {recipe.youtube_url && (
+            <div className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded-md shadow-lg flex items-center gap-1">
+              <Video className="w-3.5 h-3.5" fill="white" />
+              <span className="text-xs font-semibold">VIDEO</span>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Tags */}
