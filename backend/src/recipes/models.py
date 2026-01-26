@@ -59,7 +59,7 @@ class Recipes(models.Model):
         ('draft', 'Draft'),
         ('published', 'Published'),
     )
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft', db_index=True)  # Index for filtering by status
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='published', db_index=True)  # Index for filtering by status
 
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)  # Index for ordering by date
     updated_at = models.DateTimeField(auto_now=True)
