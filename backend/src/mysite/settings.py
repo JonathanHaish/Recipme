@@ -148,10 +148,16 @@ MEDIA_ROOT = BASE_DIR / 'media'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # CORS settings - allow nginx (internal communication)
-CORS_ALLOWED_ORIGINS = os.environ.get(
-    'CORS_ALLOWED_ORIGINS',
-    'http://localhost:3000,http://127.0.0.1:3000,http://localhost,http://localhost:80,http://nginx'
-).split(',')
+# Check if CORS_ALLOW_ALL_ORIGINS is set to True
+if os.environ.get('CORS_ALLOW_ALL_ORIGINS', 'False').lower() == 'true':
+    CORS_ALLOW_ALL_ORIGINS = True
+    CORS_ALLOW_CREDENTIALS = True  # Required for cookies/authentication
+else:
+    CORS_ALLOWED_ORIGINS = os.environ.get(
+        'CORS_ALLOWED_ORIGINS',
+        'http://localhost:3000,http://127.0.0.1:3000,http://localhost,http://localhost:80,http://nginx'
+    ).split(',')
+    CORS_ALLOW_CREDENTIALS = True  # Required for cookies/authentication
 
 CORS_ALLOW_CREDENTIALS = True
 
