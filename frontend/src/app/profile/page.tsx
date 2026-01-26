@@ -190,9 +190,9 @@ export default function ProfilePage() {
           {/* Profile Image Section */}
           <div className="flex flex-col items-center space-y-4">
             <Avatar className="h-32 w-32">
-              <AvatarImage src={profileImagePreview || undefined} alt={user?.username || 'Profile'} />
+              <AvatarImage src={profileImagePreview || undefined} alt={user?.email || 'Profile'} />
               <AvatarFallback className="text-2xl bg-gray-400 text-white font-semibold">
-                {user?.username?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || 'U'}
+                {user?.email?.charAt(0).toUpperCase() || 'U'}
               </AvatarFallback>
             </Avatar>
             <div className="flex flex-col items-center space-y-2">
@@ -220,15 +220,9 @@ export default function ProfilePage() {
           </div>
 
           {/* User Info (Read-only) */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Username</Label>
-              <Input value={profile?.username || user?.username || ''} disabled />
-            </div>
-            <div>
-              <Label>Email</Label>
-              <Input value={profile?.email || user?.email || ''} disabled />
-            </div>
+          <div>
+            <Label>Email</Label>
+            <Input value={profile?.email || user?.email || ''} disabled />
           </div>
 
           {/* Goals Section */}
