@@ -35,3 +35,6 @@ pgadmin-data/
 # OS generated files
 Thumbs.db
 .DS_Store
+
+# Python
+__pycache__/
