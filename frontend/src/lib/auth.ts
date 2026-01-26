@@ -92,6 +92,9 @@ class APIClient {
     const noRefreshEndpoints = ['/login', '/register', '/forgot-password', '/reset-password'];
     const shouldSkipRefresh = noRefreshEndpoints.some(endpoint => url.includes(endpoint));
 
+    // Check if this is just an auth check (getMe), not a real user action
+    const isMeEndpoint = url.includes('/me');
+
     // Handle token refresh on 401, but not for auth endpoints
     if (response.status === 401 && !shouldSkipRefresh) {
       if (!this.isRefreshing) {
@@ -109,9 +112,9 @@ class APIClient {
           });
         } catch (error) {
           this.isRefreshing = false;
-          // Session expired - redirect to login page gracefully
-          // But only if we're not already on an auth page (to prevent redirect loops)
-          if (typeof window !== 'undefined' && !this.isRedirecting) {
+          // Only redirect if this was a real user action, not just an auth check
+          // and only if we're not already on an auth page
+          if (typeof window !== 'undefined' && !this.isRedirecting && !isMeEndpoint) {
             const currentPath = window.location.pathname;
             const isAuthPage = currentPath.startsWith('/login') ||
                               currentPath.startsWith('/register') ||

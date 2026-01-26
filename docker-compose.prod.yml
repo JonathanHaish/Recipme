@@ -1,0 +1,92 @@
+services:
+  # NGINX - Main entry point on port 80
+  nginx:
+    container_name: nginx-prod
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - frontend
+      - backend
+    restart: unless-stopped
+
+  # Frontend - Next.js production mode
+  frontend:
+    container_name: frontend-next-prod
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=http://localhost
+    expose:
+      - "3000"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+
+  # Backend - Django with Gunicorn
+  backend:
+    container_name: backend-django-prod
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    expose:
+      - "8000"
+    volumes:
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    depends_on:
+      - postgres
+      - redis
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_HOST=postgres
+      - REDIS_HOST=redis
+      - EMAIL_HOST=mailpit
+      - DEBUG=False
+    restart: unless-stopped
+
+  # PostgreSQL Database
+  postgres:
+    container_name: postgres-db-prod
+    image: postgres:16
+    expose:
+      - "5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    env_file:
+      - .env
+    restart: unless-stopped
+
+  # Redis Cache
+  redis:
+    container_name: redis-cache-prod
+    image: redis:7-alpine
+    expose:
+      - "6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  # Mailpit (for email testing - optional, can remove in prod)
+  mailpit:
+    container_name: mailpit-prod
+    image: axllent/mailpit:latest
+    expose:
+      - "1025"
+    ports:
+      - "8025:8025"  # Keep web UI accessible for testing
+    environment:
+      - MP_MAX_MESSAGES=5000
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  static_volume:
+  media_volume:

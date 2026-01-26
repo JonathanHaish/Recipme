@@ -19,6 +19,8 @@ A full-stack recipe management application with user authentication, recipe sear
 
 **Infrastructure:**
 - Docker Compose orchestration
+- NGINX reverse proxy (production)
+- Gunicorn WSGI server (production)
 - MailPit (email testing)
 - PgAdmin (database management)
 
@@ -118,6 +120,8 @@ Use `--clear` flag to reset demo data before populating.
 
 ## Quick Start
 
+### Development Mode
+
 1. Copy `.env.template` to `.env` and configure
 2. Start services:
    ```bash
@@ -129,6 +133,30 @@ Use `--clear` flag to reset demo data before populating.
    - Django Admin: http://localhost:8000/admin
    - MailPit: http://localhost:8025
    - PgAdmin: http://localhost:5050
+
+### Production Deployment
+
+Run everything through NGINX on port 80:
+
+```bash
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+Access everything through http://localhost:
+- Main app: http://localhost
+- Admin: http://localhost/admin
+- API: http://localhost/api
+
+**Architecture:** NGINX routes all traffic to Gunicorn (backend) and Next.js (frontend) internally. Static files served via WhiteNoise.
+
+**On a new machine:**
+```bash
+git clone <repository>
+cd Recipme
+cp .env.template .env
+# Edit .env with your configuration
+docker compose -f docker-compose.prod.yml up -d --build
+```
 
 ## Project Structure
 

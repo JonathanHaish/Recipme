@@ -70,16 +70,16 @@ class LoginView(APIView):
             key='access_token',
             value=access_token,
             httponly=True,
-            secure=not settings.DEBUG,  # Use secure in production
+            secure=False,  # Set to True when using HTTPS in production
             samesite='Lax',
             max_age=60 * 15  # 15 minutes
         )
-        
+
         response.set_cookie(
             key='refresh_token',
             value=refresh_token,
             httponly=True,
-            secure=not settings.DEBUG,
+            secure=False,  # Set to True when using HTTPS in production
             samesite='Lax',
             max_age=60 * 60 * 24 * 7  # 7 days
         )

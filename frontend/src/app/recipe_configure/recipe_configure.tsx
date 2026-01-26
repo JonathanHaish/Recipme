@@ -2,17 +2,25 @@ import { useState } from "react";
 import { RecipeModal } from "./components/RecipeModal";
 import { RecipeGrid } from "./components/RecipeGrid";
 import { CreateRecipeButton } from "./components/CreateRecipeButton";
+import { Tag } from "@/lib/api";
+
+interface Ingredient {
+  id: string;
+  name: string;
+  amount: string;
+  unit?: string;
+  fdc_id?: number;
+}
 
 interface Recipe {
   id?: string;
-  name: string;
-  type: string;
-  dateCreated?: string;
-  dateUpdated?: string;
+  title: string;
+  description: string;
+  instructions?: string;
   image?: string;
-  ingredients: Array<{ id: string; name: string; amount: string }>;
-  isLiked?: boolean;
-  isSaved?: boolean;
+  ingredients: Ingredient[];
+  tags?: Tag[];
+  youtube_url?: string;
 }
 
 export  function RecipeConfig() {
@@ -54,13 +62,11 @@ export  function RecipeConfig() {
       const newRecipe = {
         ...recipe,
         id: Date.now().toString(),
-        isLiked: false,
-        isSaved: false,
       };
       setRecipes([...recipes, newRecipe]);
     } else {
       setRecipes(
-        recipes.map((r) => (r.id === selectedRecipe?.id ? { ...recipe, id: r.id, isLiked: r.isLiked, isSaved: r.isSaved } : r))
+        recipes.map((r) => (r.id === selectedRecipe?.id ? { ...recipe, id: r.id } : r))
       );
     }
   };
