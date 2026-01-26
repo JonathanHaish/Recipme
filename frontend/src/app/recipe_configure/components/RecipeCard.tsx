@@ -3,8 +3,8 @@ import { Tag, RecipeNutrition } from "@/lib/api";
 
 interface Recipe {
   id?: string;
-  name: string;
-  type: string;
+  title: string;  // Changed from 'name' to match backend
+  description: string;  // Changed from 'type' to match backend
   dateCreated?: string;
   dateUpdated?: string;
   image?: string;
@@ -70,7 +70,7 @@ export function RecipeCard({ recipe, onEdit, onViewDetails, onToggleLike, onTogg
         <div className="h-32 sm:h-24 bg-white border-b border-black">
           <img
             src={recipe.image}
-            alt={recipe.name}
+            alt={recipe.title}
             className="w-full h-full object-cover"
           />
         </div>
@@ -96,9 +96,9 @@ export function RecipeCard({ recipe, onEdit, onViewDetails, onToggleLike, onTogg
         )}
       </div>
 
-      {/* Name/Title */}
+      {/* Title */}
       <div className="px-2 py-2 border-b border-black">
-        <h3 className="text-base font-bold text-black">{recipe.name}</h3>
+        <h3 className="text-base font-bold text-black">{recipe.title}</h3>
         <p className="text-xs text-gray-600 mt-1">
           <span className="font-medium">Ingredients:</span> {recipe.ingredients.length}
         </p>

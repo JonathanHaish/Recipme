@@ -68,8 +68,8 @@ export default function App() {
     return backendRecipes.map((recipe: BackendRecipe) => ({
       id: recipe.id?.toString(),
       authorId: recipe.author,
-      name: recipe.title,
-      type: recipe.tags?.map(t => t.name).join(', ') || recipe.description || '',
+      title: recipe.title,  // No transformation needed
+      description: recipe.description,  // No transformation needed
       instructions: recipe.instructions,
       image: recipe.image_url || "",
       dateCreated: recipe.created_at ? new Date(recipe.created_at).toISOString().split('T')[0] : undefined,

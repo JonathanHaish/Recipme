@@ -18,8 +18,8 @@ interface Ingredient {
 
 interface Recipe {
   id?: string;
-  name: string;
-  type: string;
+  title: string;
+  description: string;
   instructions?: string;
   image?: string;
   ingredients: Ingredient[];
@@ -36,8 +36,8 @@ interface RecipeModalProps {
 
 export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeModalProps) {
   const [formData, setFormData] = useState<Recipe>({
-    name: recipe?.name || "",
-    type: recipe?.type || "",
+    title: recipe?.title || "",
+    description: recipe?.description || "",
     instructions: recipe?.instructions || "",
     image: recipe?.image || "",
     ingredients: recipe?.ingredients || [],
@@ -75,8 +75,8 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
     if (isOpen && mode === "create" && !recipe) {
       // Reset form to initial state when opening in create mode
       setFormData({
-        name: "",
-        type: "",
+        title: "",
+        description: "",
         instructions: "",
         image: "",
         ingredients: [],
@@ -90,8 +90,8 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
     } else if (isOpen && recipe) {
       // Load recipe data when in edit mode
       setFormData({
-        name: recipe.name || "",
-        type: recipe.type || "",
+        title: recipe.title || "",
+        description: recipe.description || "",
         instructions: recipe.instructions || "",
         image: recipe.image || "",
         ingredients: recipe.ingredients || [],
@@ -102,8 +102,8 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
 
   const resetForm = () => {
     setFormData({
-      name: "",
-      type: "",
+      title: "",
+      description: "",
       instructions: "",
       image: "",
       ingredients: [],
@@ -191,8 +191,8 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
 
   const handleSubmit = async () => {
     // Validate required fields
-    if (!formData.name.trim()) {
-      setSubmitError("Recipe name is required");
+    if (!formData.title.trim()) {
+      setSubmitError("Recipe title is required");
       return;
     }
 
@@ -205,21 +205,21 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
     setSubmitError(null);
 
     try {
-      // Set type field from tags for backward compatibility
+      // Set description field from tags if empty
       const recipeData = {
         ...formData,
-        type: formData.tags?.map(t => t.name).join(', ') || ''
+        description: formData.description || formData.tags?.map(t => t.name).join(', ') || 'No description'
       };
 
       if (mode === "create") {
         // Create new recipe via API
         const createdRecipe = await recipesAPI.createRecipe(recipeData);
-        
-        // Transform backend response to frontend format for the callback
+
+        // No transformation needed - backend and frontend now use same field names
         const frontendRecipe: Recipe = {
           id: createdRecipe.id?.toString(),
-          name: createdRecipe.title,
-          type: createdRecipe.description,
+          title: createdRecipe.title,
+          description: createdRecipe.description,
           instructions: createdRecipe.instructions,
           ingredients: formData.ingredients,
           image: formData.image,
@@ -236,8 +236,8 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
           const updatedRecipe = await recipesAPI.updateRecipe(recipe.id, recipeData);
           const frontendRecipe: Recipe = {
             id: updatedRecipe.id?.toString(),
-            name: updatedRecipe.title,
-            type: updatedRecipe.description,
+            title: updatedRecipe.title,
+            description: updatedRecipe.description,
             instructions: updatedRecipe.instructions,
             ingredients: formData.ingredients,
             image: formData.image,
@@ -287,13 +287,24 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
         {/* Modal Content */}
         <div className="overflow-y-auto px-4 sm:px-5 py-3 sm:py-4 flex-1">
           <div className="space-y-6">
-            {/* Recipe Name */}
+            {/* Recipe Title */}
             <div className="space-y-2">
-              <label className="text-sm font-medium text-black">Recipe Name</label>
+              <label className="text-sm font-medium text-black">Recipe Title</label>
               <input
-                value={formData.name}
-                onChange={(e) => handleInputChange("name", e.target.value)}
-                placeholder="Enter recipe name"
+                value={formData.title || ""}
+                onChange={(e) => handleInputChange("title", e.target.value)}
+                placeholder="Enter recipe title"
+                className="w-full px-3 py-2 border border-black rounded text-black text-base min-h-[44px]"
+              />
+            </div>
+
+            {/* Recipe Description */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-black">Description (Optional)</label>
+              <input
+                value={formData.description || ""}
+                onChange={(e) => handleInputChange("description", e.target.value)}
+                placeholder="Enter recipe description"
                 className="w-full px-3 py-2 border border-black rounded text-black text-base min-h-[44px]"
               />
             </div>

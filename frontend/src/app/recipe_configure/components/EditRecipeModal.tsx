@@ -4,8 +4,8 @@ import { Trash2 } from "lucide-react";
 interface Recipe {
   id?: string;
   authorId?: number;
-  name: string;
-  type: string;
+  title: string;
+  description: string;
   instructions?: string;
   image?: string;
   ingredients: Array<{ id: string; name: string; amount: string }>;
@@ -162,8 +162,8 @@ export function EditRecipeModal({
                         />
                       </td>
                       <td className="px-4 py-3 text-sm text-black">{recipe.id}</td>
-                      <td className="px-4 py-3 text-sm font-medium text-black">{recipe.name}</td>
-                      <td className="px-4 py-3 text-sm text-black capitalize hidden sm:table-cell">{recipe.type}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-black">{recipe.title}</td>
+                      <td className="px-4 py-3 text-sm text-black capitalize hidden sm:table-cell">{recipe.description}</td>
                       <td className="px-4 py-3 text-sm text-black">{recipe.ingredients.length}</td>
                       <td className="px-4 py-3 text-sm text-black hidden sm:table-cell">{recipe.dateUpdated || "N/A"}</td>
                     </tr>

@@ -11,8 +11,8 @@ interface Ingredient {
 interface Recipe {
   id?: string;
   authorId?: number;
-  name: string;
-  type: string;
+  title: string;  // Changed from 'name' to match backend
+  description: string;  // Changed from 'type' to match backend
   instructions?: string;
   image?: string;
   ingredients: Ingredient[];
@@ -83,9 +83,12 @@ export function ViewRecipeModal({
 
         {/* Modal Content */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-3 sm:py-4">
-          {/* Recipe Name */}
+          {/* Recipe Title */}
           <div className="mb-4">
-            <h3 className="text-2xl font-bold text-black">{recipe.name}</h3>
+            <h3 className="text-2xl font-bold text-black">{recipe.title}</h3>
+            {recipe.description && (
+              <p className="text-gray-600 mt-1">{recipe.description}</p>
+            )}
           </div>
 
           {/* Recipe Tags */}
@@ -111,7 +114,7 @@ export function ViewRecipeModal({
             <div className="mb-4 h-48 sm:h-64 bg-white border-2 border-black rounded-lg overflow-hidden">
               <img
                 src={recipe.image}
-                alt={recipe.name}
+                alt={recipe.title}
                 className="w-full h-full object-cover"
               />
             </div>

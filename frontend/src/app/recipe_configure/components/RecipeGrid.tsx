@@ -3,8 +3,8 @@ import { RecipeCardSkeleton } from "@/app/recipe_configure/components/RecipeCard
 
 interface Recipe {
   id?: string;
-  name: string;
-  type: string;
+  title: string;  // Changed from 'name' to match backend
+  description: string;  // Changed from 'type' to match backend
   dateCreated?: string;
   dateUpdated?: string;
   image?: string;
@@ -49,8 +49,8 @@ export function RecipeGrid({
   }
 
   const filteredRecipes = recipes.filter(recipe =>
-    recipe.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    recipe.type.toLowerCase().includes(searchQuery.toLowerCase())
+    recipe.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    recipe.description.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   if (recipes.length === 0) {

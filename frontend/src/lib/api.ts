@@ -153,8 +153,8 @@ interface BackendRecipe {
 
 interface FrontendRecipe {
   id?: string;
-  name: string;
-  type: string;
+  title: string;  // Changed from 'name' to match backend
+  description: string;  // Changed from 'type' to match backend
   instructions?: string;
   image?: string;
   ingredients: Array<{
@@ -176,10 +176,10 @@ export const recipesAPI = {
    */
   createRecipe: async (recipe: FrontendRecipe): Promise<BackendRecipe> => {
     try {
-      // Transform frontend format to backend format
+      // No transformation needed - frontend now uses same field names as backend
       const backendRecipe: any = {
-        title: recipe.name,
-        description: recipe.type || recipe.name, // Use type or name as description
+        title: recipe.title,
+        description: recipe.description,
         status: 'draft',
         instructions: recipe.instructions || '', // Use instructions from form
         recipe_ingredients: recipe.ingredients.map((ing) => {
@@ -237,8 +237,8 @@ export const recipesAPI = {
   updateRecipe: async (recipeId: string, recipe: FrontendRecipe): Promise<BackendRecipe> => {
     try {
       const backendRecipe: any = {
-        title: recipe.name,
-        description: recipe.type || recipe.name,
+        title: recipe.title,
+        description: recipe.description,
         status: 'draft',
         instructions: recipe.instructions || '',
         recipe_ingredients: recipe.ingredients.map((ing) => ({
