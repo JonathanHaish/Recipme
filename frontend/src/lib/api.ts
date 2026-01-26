@@ -183,7 +183,7 @@ export const recipesAPI = {
       const backendRecipe: any = {
         title: recipe.title,
         description: recipe.description,
-        status: 'draft',
+        // Don't set status - let backend use its default ('published')
         instructions: recipe.instructions || '', // Use instructions from form
         recipe_ingredients: recipe.ingredients.map((ing) => {
           const ingredientData: any = {
@@ -247,7 +247,7 @@ export const recipesAPI = {
       const backendRecipe: any = {
         title: recipe.title,
         description: recipe.description,
-        status: 'draft',
+        // Don't set status - let backend use its default ('published')
         instructions: recipe.instructions || '',
         recipe_ingredients: recipe.ingredients.map((ing) => ({
           ingredient: {

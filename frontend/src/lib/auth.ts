@@ -90,7 +90,7 @@ class APIClient {
     });
 
     // Endpoints that should not trigger token refresh
-    const noRefreshEndpoints = ['/login', '/register', '/forgot-password', '/reset-password'];
+    const noRefreshEndpoints = ['/login', '/register', '/forgot-password', '/reset-password', '/logout'];
     const shouldSkipRefresh = noRefreshEndpoints.some(endpoint => url.includes(endpoint));
 
     // Check if this is just an auth check (getMe), not a real user action

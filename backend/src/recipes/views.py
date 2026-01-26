@@ -16,12 +16,26 @@ class TagViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = Tag.objects.filter(is_active=True).order_by('name')
     serializer_class = TagSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]  # Allow guests to view tags
 
 
 class RecipeViewSet(viewsets.ModelViewSet):
     serializer_class = RecipeSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    # Allow anyone to view recipes, but require auth for creating/editing
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def get_permissions(self):
+        """
+        Custom permissions for different actions.
+        - List, retrieve, search, filter_by_tags, by_user: Allow anyone (including guests)
+        - Create, update, delete: Require authentication
+        - my_recipes, saved, toggle_like, toggle_save, personalized, recalculate_nutrition: Require authentication
+        """
+        if self.action in ['list', 'retrieve', 'search', 'filter_by_tags', 'by_user']:
+            permission_classes = [permissions.AllowAny]
+        else:
+            permission_classes = [permissions.IsAuthenticated]
+        return [permission() for permission in permission_classes]
 
     def get_queryset(self):
         """

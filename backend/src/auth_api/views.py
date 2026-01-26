@@ -89,36 +89,36 @@ class LoginView(APIView):
 
 class LogoutView(APIView):
     """Logout endpoint - blacklists refresh token and clears cookies"""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]  # Allow anyone to logout, even with invalid tokens
 
     def post(self, request):
-        try:
-            # Get refresh token from cookie
-            refresh_token = request.COOKIES.get('refresh_token')
-            if not refresh_token:
-                return Response(
-                    {"error": "Refresh token not found"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            # Blacklist the token
-            token = RefreshToken(refresh_token)
-            token.blacklist()
-            
-            # Clear cookies
-            response = Response(
-                {"message": "Logged out successfully"},
-                status=status.HTTP_205_RESET_CONTENT
-            )
-            response.delete_cookie('access_token')
-            response.delete_cookie('refresh_token')
-            
-            return response
-        except TokenError:
-            return Response(
-                {"error": "Invalid token"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        # Always clear cookies, even if token blacklisting fails
+        response = Response(
+            {"message": "Logged out successfully"},
+            status=status.HTTP_205_RESET_CONTENT
+        )
+        response.delete_cookie(
+            key='access_token',
+            path='/',
+            samesite='Lax'
+        )
+        response.delete_cookie(
+            key='refresh_token',
+            path='/',
+            samesite='Lax'
+        )
+
+        # Try to blacklist the refresh token if it exists
+        refresh_token = request.COOKIES.get('refresh_token')
+        if refresh_token:
+            try:
+                token = RefreshToken(refresh_token)
+                token.blacklist()
+            except TokenError:
+                # Token already blacklisted or invalid - that's fine, we still cleared cookies
+                pass
+
+        return response
 
 
 class RefreshView(APIView):

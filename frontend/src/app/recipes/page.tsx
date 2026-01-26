@@ -154,12 +154,17 @@ export default function App() {
   // Fetch personalized recipes on mount (ordered by user's goals and diet)
   useEffect(() => {
     const fetchRecipes = async () => {
-      if (!user) return; // Only fetch if user is logged in
-
       setLoadingRecipes(true);
       try {
-        // Use personalized endpoint that orders recipes based on user's profile
-        const response = await recipesAPI.getPersonalizedRecipes(currentPage);
+        let response;
+        if (user) {
+          // Use personalized endpoint for logged-in users
+          response = await recipesAPI.getPersonalizedRecipes(currentPage);
+        } else {
+          // Use regular endpoint for guests
+          response = await recipesAPI.getAllRecipes(currentPage);
+        }
+
         // Transform backend format to frontend format
         const frontendRecipes = transformBackendToFrontend(response.results);
         setAllRecipes(frontendRecipes);
@@ -169,20 +174,9 @@ export default function App() {
         setTotalCount(response.count);
         setTotalPages(Math.ceil(response.count / 20)); // 20 is the page size from backend
       } catch (error) {
-        console.error("Error fetching personalized recipes:", error);
-        // Fallback to regular recipes if personalized fails
-        try {
-          const response = await recipesAPI.getAllRecipes(currentPage);
-          const frontendRecipes = transformBackendToFrontend(response.results);
-          setAllRecipes(frontendRecipes);
-          setRecipes(frontendRecipes);
-          setTotalCount(response.count);
-          setTotalPages(Math.ceil(response.count / 20));
-        } catch (fallbackError) {
-          console.error("Error fetching recipes:", fallbackError);
-          setAllRecipes([]);
-          setRecipes([]);
-        }
+        console.error("Error fetching recipes:", error);
+        setAllRecipes([]);
+        setRecipes([]);
       } finally {
         setLoadingRecipes(false);
       }
@@ -193,7 +187,7 @@ export default function App() {
 
   // Apply filters whenever filter states change
   useEffect(() => {
-    if (!user || hasSearched) return; // Don't apply filters if searching
+    if (hasSearched) return; // Don't apply filters if searching
 
     let filtered = [...allRecipes];
 
