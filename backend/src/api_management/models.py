@@ -251,7 +251,7 @@ class FoodDataCentralAPI(HTTP2Client):
             "Carbohydrate, by difference": "carbohydrates",
             "Energy": "calories",
             "Fiber, total dietary": "fiber",
-            "Sugars, total including NLEA": "sugars"
+            "Total Sugars": "sugars"
         }
         
         for nutrient in food_data.get("foodNutrients", []):

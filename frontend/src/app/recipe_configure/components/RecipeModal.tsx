@@ -483,7 +483,7 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
                       <div className="flex-1">
                         <p className="font-medium text-black">{ingredient.name}</p>
                         <p className="text-sm text-gray-600">
-                          Amount: {ingredient.amount} g
+                          Amount: {parseFloat(ingredient.amount).toFixed(0)} g
                         </p>
                       </div>
                       <button

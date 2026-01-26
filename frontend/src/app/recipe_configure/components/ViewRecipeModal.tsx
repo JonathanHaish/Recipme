@@ -185,7 +185,7 @@ export function ViewRecipeModal({
                   >
                     <span className="text-black font-medium">{ingredient.name}</span>
                     <span className="text-gray-700 font-medium">
-                      {ingredient.amount} g
+                      {parseFloat(ingredient.amount).toFixed(0)} g
                     </span>
                   </div>
                 ))}
