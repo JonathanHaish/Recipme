@@ -1,7 +1,7 @@
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import viewsets, permissions
-from django.db.models import Q, Count
+from django.db.models import Q, Count, Case, When, IntegerField
 from .models import Recipes, RecipeLikes, Favorites, Tag
 from .serializers import RecipeSerializer, TagSerializer
 import logging
@@ -248,11 +248,133 @@ class RecipeViewSet(viewsets.ModelViewSet):
     def toggle_save(self, request, pk=None):
         recipe = self.get_object()
         favorite, created = Favorites.objects.get_or_create(user=request.user, recipe=recipe)
-        
+
         if not created:
             # Favorite already exists, remove it
             favorite.delete()
             return Response({'saved': False})
-        
+
         return Response({'saved': True})
+
+    # Get personalized recipes based on user profile
+    @action(detail=False, methods=['get'])
+    def personalized(self, request):
+        """
+        Get all PUBLIC recipes ordered by user's profile preferences.
+        Recipes matching user's diet preference appear first.
+        Recipes matching user's goals appear next.
+        Then all other public recipes.
+        """
+        # Import here to avoid circular imports
+        from profiles.models import UserProfile
+
+        # Get all PUBLIC recipes (published status)
+        all_recipes = self.get_queryset().filter(status='published')
+
+        # Get user profile
+        try:
+            user_profile = UserProfile.objects.get(user=request.user)
+        except UserProfile.DoesNotExist:
+            # If no profile, return all public recipes in default order
+            page = self.paginate_queryset(all_recipes)
+            if page is not None:
+                serializer = self.get_serializer(page, many=True)
+                return self.get_paginated_response(serializer.data)
+            serializer = self.get_serializer(all_recipes, many=True)
+            return Response(serializer.data)
+
+        # Get user's diet preference
+        user_diet = user_profile.diet
+        user_goals = user_profile.goals.all()
+
+        # Create a mapping of goal codes to recipe type keywords
+        goal_keywords = {
+            'weight_loss': ['low calorie', 'low fat', 'weight loss', 'diet', 'light'],
+            'weight_gain': ['high calorie', 'high protein', 'weight gain', 'bulk'],
+            'muscle_gain': ['high protein', 'muscle', 'protein', 'strength', 'fitness'],
+            'maintain_weight': ['balanced', 'maintain', 'healthy'],
+            'improve_health': ['healthy', 'nutritious', 'wellness', 'health'],
+            'increase_energy': ['energy', 'energizing', 'boost', 'vitality'],
+            'better_nutrition': ['nutritious', 'healthy', 'balanced', 'nutrition'],
+            'meal_prep': ['meal prep', 'prep', 'batch', 'make ahead'],
+            'healthy_eating': ['healthy', 'nutritious', 'clean', 'whole'],
+            'build_strength': ['high protein', 'strength', 'muscle', 'fitness'],
+            'improve_digestion': ['digestive', 'fiber', 'probiotic', 'gut health'],
+            'heart_health': ['heart healthy', 'cardio', 'low sodium', 'omega'],
+            'diabetes_management': ['low sugar', 'diabetic', 'low glycemic', 'blood sugar'],
+            'reduce_inflammation': ['anti-inflammatory', 'turmeric', 'ginger', 'omega'],
+            'boost_immunity': ['immune', 'vitamin c', 'antioxidant', 'immunity'],
+            'improve_skin': ['skin', 'collagen', 'antioxidant', 'vitamin e'],
+            'better_sleep': ['sleep', 'tryptophan', 'melatonin', 'relaxing'],
+            'sports_performance': ['performance', 'sports', 'athletic', 'recovery'],
+        }
+
+        # Build ordering conditions
+        when_conditions = []
+        order_value = 0
+
+        # First priority: Recipes matching user's diet preference
+        if user_diet:
+            diet_name_lower = user_diet.name.lower()
+            diet_code_lower = user_diet.code.lower()
+            # Normalize diet name for matching (handle variations)
+            diet_variations = [diet_name_lower, diet_code_lower]
+            # Add common variations (e.g., "lactose-free" vs "lactose free")
+            if '-' in diet_name_lower:
+                diet_variations.append(diet_name_lower.replace('-', ' '))
+            if ' ' in diet_name_lower:
+                diet_variations.append(diet_name_lower.replace(' ', '-'))
+
+            # Check if recipe description contains diet name, code, or variations
+            diet_q = Q()
+            for variation in diet_variations:
+                diet_q |= Q(description__icontains=variation) | Q(title__icontains=variation)
+
+            when_conditions.append(
+                When(diet_q, then=order_value)
+            )
+            order_value += 1
+
+        # Second priority: Recipes matching user's goals
+        goal_keywords_list = []
+        for goal in user_goals:
+            if goal.code in goal_keywords:
+                goal_keywords_list.extend(goal_keywords[goal.code])
+
+        if goal_keywords_list:
+            # Create Q object for goal matching
+            goal_q = Q()
+            for keyword in goal_keywords_list:
+                goal_q |= Q(description__icontains=keyword) | Q(title__icontains=keyword)
+
+            when_conditions.append(
+                When(goal_q, then=order_value)
+            )
+            order_value += 1
+
+        # Default: All other recipes
+        when_conditions.append(
+            When(pk__isnull=False, then=order_value)
+        )
+
+        # Apply ordering
+        if when_conditions:
+            all_recipes = all_recipes.annotate(
+                match_priority=Case(
+                    *when_conditions,
+                    default=order_value,
+                    output_field=IntegerField()
+                )
+            ).order_by('match_priority', '-created_at')
+        else:
+            all_recipes = all_recipes.order_by('-created_at')
+
+        # Apply pagination
+        page = self.paginate_queryset(all_recipes)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(all_recipes, many=True)
+        return Response(serializer.data)
     

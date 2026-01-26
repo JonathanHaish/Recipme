@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     'api_management',
     'recipes',
     'contact_api',
+    'profiles',
 ]
 
 MIDDLEWARE = [

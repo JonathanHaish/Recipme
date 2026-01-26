@@ -417,7 +417,141 @@ export const recipesAPI = {
       throw error;
     }
   },
+
+  /**
+   * Get personalized recipes ordered by user's profile (goals and diet)
+   * @param page - Page number (default: 1)
+   * @returns Paginated response with personalized recipes
+   */
+  getPersonalizedRecipes: async (page: number = 1): Promise<PaginatedResponse<BackendRecipe>> => {
+    try {
+      return await apiClient.request<PaginatedResponse<BackendRecipe>>(`${API_URL}/recipes/recipes/personalized/?page=${page}`);
+    } catch (error) {
+      console.error('Error fetching personalized recipes:', error);
+      throw error;
+    }
+  },
 };
 
 export type { Ingredient, NutritionData, FrontendRecipe, BackendRecipe, RecipeNutrition };
+
+// Profile API
+export interface UserProfile {
+  username: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  profile_image: string | null;
+  profile_image_url: string | null;
+  goals: Goal[];
+  diet: DietType | null;
+  description: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UpdateProfileRequest {
+  profile_image?: File | string | null;
+  goal_ids?: number[];
+  diet_id?: number | null;
+  description?: string;
+}
+
+export interface Goal {
+  id: number;
+  code: string;
+  name: string;
+  description?: string;
+  is_active: boolean;
+  display_order: number;
+}
+
+export interface DietType {
+  id: number;
+  code: string;
+  name: string;
+  description?: string;
+  is_active: boolean;
+  display_order: number;
+}
+
+export const profileAPI = {
+  /**
+   * Get all active goals
+   */
+  getGoals: async (): Promise<Goal[]> => {
+    try {
+      return await apiClient.request<Goal[]>(`${API_URL}/api/profiles/goals/`);
+    } catch (error) {
+      console.error('Error fetching goals:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get all active diet types
+   */
+  getDietTypes: async (): Promise<DietType[]> => {
+    try {
+      return await apiClient.request<DietType[]>(`${API_URL}/api/profiles/diet-types/`);
+    } catch (error) {
+      console.error('Error fetching diet types:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get current user's profile
+   * @returns User profile data
+   */
+  getProfile: async (): Promise<UserProfile> => {
+    try {
+      return await apiClient.request<UserProfile>(`${API_URL}/api/profiles/me`);
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Update current user's profile
+   * @param profileData - Profile data to update
+   * @returns Updated profile data
+   */
+  updateProfile: async (profileData: UpdateProfileRequest): Promise<UserProfile> => {
+    try {
+      const formData = new FormData();
+
+      // Handle profile image
+      if (profileData.profile_image instanceof File) {
+        formData.append('profile_image', profileData.profile_image);
+      }
+
+      // Handle goal_ids - always send, even if empty array
+      if (profileData.goal_ids !== undefined) {
+        // Send as JSON string for array
+        formData.append('goal_ids', JSON.stringify(profileData.goal_ids));
+      }
+
+      // Handle diet_id - send if provided
+      if (profileData.diet_id !== undefined) {
+        formData.append('diet_id', profileData.diet_id !== null ? profileData.diet_id.toString() : '');
+      }
+
+      // Handle description - always send if provided
+      if (profileData.description !== undefined) {
+        formData.append('description', profileData.description);
+      }
+
+      return await apiClient.request<UserProfile>(`${API_URL}/api/profiles/me`, {
+        method: 'PUT',
+        body: formData,
+        // Don't set Content-Type header, let browser set it with boundary for FormData
+      });
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      throw error;
+    }
+  },
+};
 

@@ -28,7 +28,8 @@ urlpatterns = [
     path('api/contact/', include('contact_api.urls')),
     path("ingredients/",include("api_management.urls")),
     path("api/ingredients/",include("api_management.urls")),
-    path('recipes/',include("recipes.urls"))
+    path('recipes/',include("recipes.urls")),
+    path('api/profiles/', include('profiles.urls')),
 ]
 
 # Serve media files in development

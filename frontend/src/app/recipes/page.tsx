@@ -151,14 +151,15 @@ export default function App() {
     setNutritionData(null);
   };
 
-  // Fetch all recipes on mount
+  // Fetch personalized recipes on mount (ordered by user's goals and diet)
   useEffect(() => {
     const fetchRecipes = async () => {
       if (!user) return; // Only fetch if user is logged in
 
       setLoadingRecipes(true);
       try {
-        const response = await recipesAPI.getAllRecipes(currentPage);
+        // Use personalized endpoint that orders recipes based on user's profile
+        const response = await recipesAPI.getPersonalizedRecipes(currentPage);
         // Transform backend format to frontend format
         const frontendRecipes = transformBackendToFrontend(response.results);
         setAllRecipes(frontendRecipes);
@@ -168,9 +169,20 @@ export default function App() {
         setTotalCount(response.count);
         setTotalPages(Math.ceil(response.count / 20)); // 20 is the page size from backend
       } catch (error) {
-        console.error("Error fetching recipes:", error);
-        setAllRecipes([]);
-        setRecipes([]);
+        console.error("Error fetching personalized recipes:", error);
+        // Fallback to regular recipes if personalized fails
+        try {
+          const response = await recipesAPI.getAllRecipes(currentPage);
+          const frontendRecipes = transformBackendToFrontend(response.results);
+          setAllRecipes(frontendRecipes);
+          setRecipes(frontendRecipes);
+          setTotalCount(response.count);
+          setTotalPages(Math.ceil(response.count / 20));
+        } catch (fallbackError) {
+          console.error("Error fetching recipes:", fallbackError);
+          setAllRecipes([]);
+          setRecipes([]);
+        }
       } finally {
         setLoadingRecipes(false);
       }
@@ -445,10 +457,14 @@ export default function App() {
                 <div className="text-sm text-gray-600">Loading...</div>
               ) : user ? (
                 <>
-                  <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded">
+                  <button
+                    onClick={() => router.push("/profile")}
+                    className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+                    title="View Profile"
+                  >
                     <User className="w-4 h-4 text-black" />
                     <span className="text-sm font-medium text-black">{user.email}</span>
-                  </div>
+                  </button>
                   <button
                     onClick={handleLogout}
                     className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded hover:bg-gray-800 transition-colors min-h-[44px]"
