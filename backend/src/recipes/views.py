@@ -108,14 +108,18 @@ class RecipeViewSet(viewsets.ModelViewSet):
         query = request.query_params.get('q', '').strip()
         if not query:
             return Response([])
-        
+
+        # Validate query length
+        if len(query) > 200:
+            return Response({'error': 'Search query too long (max 200 characters)'}, status=400)
+
         # Search in title and description
         recipes = Recipes.objects.filter(
             author=request.user
         ).filter(
             Q(title__icontains=query) | Q(description__icontains=query)
         )
-        
+
         serializer = self.get_serializer(recipes, many=True)
         return Response(serializer.data)
     
@@ -145,6 +149,10 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
         if not tag_ids:
             return Response([])
+
+        # Limit number of tags to prevent abuse
+        if len(tag_ids) > 20:
+            return Response({'error': 'Too many tag_ids (max 20)'}, status=400)
 
         # Start with user's recipes
         recipes = Recipes.objects.filter(author=request.user)

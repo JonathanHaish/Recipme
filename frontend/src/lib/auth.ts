@@ -5,9 +5,47 @@ import type {
   LoginResponse,
 } from '@/types/auth';
 
-const API_URL = typeof window !== 'undefined' 
+const API_URL = typeof window !== 'undefined'
   ? (window as any).ENV?.API_URL || 'http://localhost:8000'
   : 'http://localhost:8000';
+
+// Custom API Error class for better error handling
+export class APIError extends Error {
+  constructor(
+    message: string,
+    public statusCode: number,
+    public fieldErrors?: Record<string, string[]>
+  ) {
+    super(message);
+    this.name = 'APIError';
+  }
+
+  // Check if this is a validation error
+  isValidationError(): boolean {
+    return this.statusCode === 400 && !!this.fieldErrors;
+  }
+
+  // Check if this is a server error
+  isServerError(): boolean {
+    return this.statusCode >= 500;
+  }
+
+  // Check if this is an authentication error
+  isAuthError(): boolean {
+    return this.statusCode === 401 || this.statusCode === 403;
+  }
+
+  // Get user-friendly error message
+  getUserMessage(): string {
+    if (this.isServerError()) {
+      return 'Server error. Please try again later.';
+    }
+    if (this.isAuthError()) {
+      return 'Authentication failed. Please log in again.';
+    }
+    return this.message;
+  }
+}
 
 const AUTH_ENDPOINTS = {
   register: `${API_URL}/api/auth/register`,
@@ -108,21 +146,32 @@ class APIClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Request failed' }));
-      
+
       // Handle Django REST Framework validation errors (field-based)
       if (typeof error === 'object' && !error.error && !error.message) {
-        // Convert field errors to readable message
-        const fieldErrors = Object.entries(error)
-          .map(([field, messages]) => {
-            const errorMessages = Array.isArray(messages) ? messages : [messages];
-            return errorMessages.join(' ');
-          })
-          .join(' ');
-        
-        throw new Error(fieldErrors || 'Request failed');
+        // Store field errors as Record<string, string[]>
+        const fieldErrors: Record<string, string[]> = {};
+        Object.entries(error).forEach(([field, messages]) => {
+          fieldErrors[field] = Array.isArray(messages) ? messages : [messages as string];
+        });
+
+        // Convert to readable message for display
+        const errorMessage = Object.entries(fieldErrors)
+          .map(([field, messages]) => `${field}: ${messages.join(', ')}`)
+          .join('; ');
+
+        throw new APIError(
+          errorMessage || 'Validation failed',
+          response.status,
+          fieldErrors
+        );
       }
-      
-      throw new Error(error.error || error.message || 'Request failed');
+
+      // Handle standard error response
+      throw new APIError(
+        error.error || error.message || 'Request failed',
+        response.status
+      );
     }
 
     // Handle empty responses (e.g., 204 No Content for DELETE requests)
