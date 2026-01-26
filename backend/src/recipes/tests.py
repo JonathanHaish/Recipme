@@ -89,7 +89,10 @@ class RecipeAPITests(TestCase):
         self.client.force_authenticate(user=self.user)
         response = self.client.get('/recipes/recipes/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIsInstance(response.data, list)
+        # Check paginated response structure
+        self.assertIn('results', response.data)
+        self.assertIn('count', response.data)
+        self.assertIsInstance(response.data['results'], list)
 
     def test_create_recipe_unauthenticated(self):
         """Test that unauthenticated users cannot create recipes"""
@@ -308,19 +311,19 @@ class RecipeFilterTests(TestCase):
         """Test searching recipes by title"""
         response = self.client.get('/recipes/recipes/search/?q=Vegan')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2)  # Vegan Pasta and Vegan Soup
+        self.assertEqual(len(response.data['results']), 2)  # Vegan Pasta and Vegan Soup
 
     def test_search_by_description(self):
         """Test searching recipes by description"""
         response = self.client.get('/recipes/recipes/search/?q=Quick')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2)  # Vegan Pasta and Chicken Stir Fry
+        self.assertEqual(len(response.data['results']), 2)  # Vegan Pasta and Chicken Stir Fry
 
     def test_search_empty_query(self):
         """Test search with empty query returns empty list"""
         response = self.client.get('/recipes/recipes/search/?q=')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 0)
+        self.assertEqual(len(response.data['results']), 0)
 
     def test_search_query_too_long(self):
         """Test search with query longer than 200 characters fails"""
@@ -333,19 +336,19 @@ class RecipeFilterTests(TestCase):
         """Test filtering by single tag (OR mode)"""
         response = self.client.get(f'/recipes/recipes/filter_by_tags/?tag_ids={self.tag_vegan.id}&match=any')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2)  # Vegan Pasta and Vegan Soup
+        self.assertEqual(len(response.data['results']), 2)  # Vegan Pasta and Vegan Soup
 
     def test_filter_by_multiple_tags_any_mode(self):
         """Test filtering by multiple tags (OR mode)"""
         response = self.client.get(f'/recipes/recipes/filter_by_tags/?tag_ids={self.tag_vegan.id},{self.tag_quick.id}&match=any')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 3)  # All recipes have at least one tag
+        self.assertEqual(len(response.data['results']), 3)  # All recipes have at least one tag
 
     def test_filter_by_multiple_tags_all_mode(self):
         """Test filtering by multiple tags (AND mode)"""
         response = self.client.get(f'/recipes/recipes/filter_by_tags/?tag_ids={self.tag_vegan.id},{self.tag_quick.id}&match=all')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)  # Only Vegan Pasta has both tags
+        self.assertEqual(len(response.data['results']), 1)  # Only Vegan Pasta has both tags
 
     def test_filter_by_tags_too_many_tags(self):
         """Test filtering with more than 20 tags fails"""
@@ -375,7 +378,7 @@ class RecipeFilterTests(TestCase):
 
         response = self.client.get('/recipes/recipes/my_recipes/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 3)  # Only current user's 3 recipes
+        self.assertEqual(len(response.data['results']), 3)  # Only current user's 3 recipes
 
 
 class RecipeLikeSaveTests(TestCase):
@@ -443,7 +446,7 @@ class RecipeLikeSaveTests(TestCase):
 
         response = self.client.get('/recipes/recipes/saved/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2)
+        self.assertEqual(len(response.data['results']), 2)
 
     def test_recipe_serializer_includes_like_save_status(self):
         """Test that recipe serializer includes is_liked and is_saved fields"""
@@ -481,10 +484,12 @@ class TagAPITests(TestCase):
         self.client.force_authenticate(user=self.user)
         response = self.client.get('/recipes/tags/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Check paginated response structure
+        self.assertIn('results', response.data)
         # Check that we get at least the 2 active tags we created
-        self.assertGreaterEqual(len(response.data), 2)
+        self.assertGreaterEqual(len(response.data['results']), 2)
         # Verify specific tags are present
-        tag_names = [tag['name'] for tag in response.data]
+        tag_names = [tag['name'] for tag in response.data['results']]
         self.assertIn('Vegan', tag_names)
         self.assertIn('Gluten-free', tag_names)
 
@@ -492,7 +497,8 @@ class TagAPITests(TestCase):
         """Test that inactive tags are not listed"""
         self.client.force_authenticate(user=self.user)
         response = self.client.get('/recipes/tags/')
-        tag_names = [tag['name'] for tag in response.data]
+        # Access results from paginated response
+        tag_names = [tag['name'] for tag in response.data['results']]
         self.assertNotIn('Inactive', tag_names)
 
     def test_retrieve_tag(self):

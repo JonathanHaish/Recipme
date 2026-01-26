@@ -1,8 +1,6 @@
 import { apiClient } from './auth';
 
-const API_URL = typeof window !== 'undefined' 
-  ? (window as any).ENV?.API_URL || 'http://localhost:8000'
-  : 'http://localhost:8000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface Ingredient {
   id: number;
@@ -43,7 +41,8 @@ export const tagsAPI = {
    */
   getAllTags: async (): Promise<Tag[]> => {
     try {
-      return await apiClient.request<Tag[]>(`${API_URL}/recipes/tags/`);
+      const response = await apiClient.request<PaginatedResponse<Tag>>(`${API_URL}/recipes/tags/`);
+      return response.results;
     } catch (error) {
       console.error('Error fetching tags:', error);
       throw error;
@@ -104,6 +103,13 @@ export interface Tag {
   name: string;
   slug: string;
   description?: string;
+}
+
+export interface PaginatedResponse<T> {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
 }
 
 interface RecipeIngredient {
@@ -269,12 +275,13 @@ export const recipesAPI = {
 
   /**
    * Get all recipes in the system
-   * @returns Array of all recipes
+   * @param page - Page number (default: 1)
+   * @returns Paginated response with recipes
    */
-  getAllRecipes: async (): Promise<BackendRecipe[]> => {
+  getAllRecipes: async (page: number = 1): Promise<PaginatedResponse<BackendRecipe>> => {
     try {
       // Use apiClient for authenticated requests
-      return await apiClient.request<BackendRecipe[]>(`${API_URL}/recipes/recipes/`);
+      return await apiClient.request<PaginatedResponse<BackendRecipe>>(`${API_URL}/recipes/recipes/?page=${page}`);
     } catch (error) {
       console.error('Error fetching recipes:', error);
       throw error;
@@ -288,7 +295,8 @@ export const recipesAPI = {
   getMyRecipes: async (): Promise<BackendRecipe[]> => {
     try {
       // Use apiClient for authenticated requests
-      return await apiClient.request<BackendRecipe[]>(`${API_URL}/recipes/recipes/my_recipes/`);
+      const response = await apiClient.request<PaginatedResponse<BackendRecipe>>(`${API_URL}/recipes/recipes/my_recipes/`);
+      return response.results;
     } catch (error) {
       console.error('Error fetching recipes:', error);
       throw error;
@@ -298,12 +306,13 @@ export const recipesAPI = {
   /**
    * Search recipes by query
    * @param query - Search query string
-   * @returns Array of matching recipes
+   * @param page - Page number (default: 1)
+   * @returns Paginated response with matching recipes
    */
-  searchRecipes: async (query: string): Promise<BackendRecipe[]> => {
+  searchRecipes: async (query: string, page: number = 1): Promise<PaginatedResponse<BackendRecipe>> => {
     try {
       const encodedQuery = encodeURIComponent(query);
-      return await apiClient.request<BackendRecipe[]>(`${API_URL}/recipes/recipes/search/?q=${encodedQuery}`);
+      return await apiClient.request<PaginatedResponse<BackendRecipe>>(`${API_URL}/recipes/recipes/search/?q=${encodedQuery}&page=${page}`);
     } catch (error) {
       console.error('Error searching recipes:', error);
       throw error;
@@ -322,9 +331,10 @@ export const recipesAPI = {
         return [];
       }
       const tagIdsStr = tagIds.join(',');
-      return await apiClient.request<BackendRecipe[]>(
+      const response = await apiClient.request<PaginatedResponse<BackendRecipe>>(
         `${API_URL}/recipes/recipes/filter_by_tags/?tag_ids=${tagIdsStr}&match=${matchMode}`
       );
+      return response.results;
     } catch (error) {
       console.error('Error filtering recipes by tags:', error);
       throw error;
@@ -337,7 +347,8 @@ export const recipesAPI = {
    */
   getSavedRecipes: async (): Promise<BackendRecipe[]> => {
     try {
-      return await apiClient.request<BackendRecipe[]>(`${API_URL}/recipes/recipes/saved/`);
+      const response = await apiClient.request<PaginatedResponse<BackendRecipe>>(`${API_URL}/recipes/recipes/saved/`);
+      return response.results;
     } catch (error) {
       console.error('Error fetching saved recipes:', error);
       throw error;

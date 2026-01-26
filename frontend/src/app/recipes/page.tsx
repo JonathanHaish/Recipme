@@ -20,6 +20,7 @@ import { RecipeModal } from "@/app/recipe_configure/components/RecipeModal";
 import { ViewRecipeModal } from "@/app/recipe_configure/components/ViewRecipeModal";
 import { RecipeActionsDropdown } from "@/app/recipe_configure/components/RecipeActionsDropdown";
 import { FilterBar } from "@/app/recipe_configure/components/FilterBar";
+import { Pagination } from "@/app/recipe_configure/components/Pagination";
 
 export default function App() {
   const [favorites, setFavorites] = useState<Record<number, boolean>>({});
@@ -50,6 +51,9 @@ export default function App() {
   const [isRecipeCreateModalOpen, setIsRecipeCreateModalOpen] = useState(false);
   const [isViewRecipeModalOpen, setIsViewRecipeModalOpen] = useState(false);
   const [selectedRecipeForView, setSelectedRecipeForView] = useState<any>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
 
   const toggleFavorite = (id: number) => {
     setFavorites((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -84,11 +88,12 @@ export default function App() {
     }));
   };
 
-  const handleSearch = async () => {
+  const handleSearch = async (page: number = 1) => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
       setHasSearched(false);
       setActiveFilter(null);
+      setCurrentPage(1);
       // Don't clear filters when clearing search - let them remain
       return;
     }
@@ -96,11 +101,16 @@ export default function App() {
     setIsSearching(true);
     setHasSearched(true);
     setActiveFilter(null);
+    setCurrentPage(page);
     // Don't clear filter checkboxes, but search results will be shown instead
     try {
-      const backendRecipes = await recipesAPI.searchRecipes(searchQuery);
-      const frontendRecipes = transformBackendToFrontend(backendRecipes);
+      const response = await recipesAPI.searchRecipes(searchQuery, page);
+      const frontendRecipes = transformBackendToFrontend(response.results);
       setSearchResults(frontendRecipes);
+
+      // Update pagination metadata
+      setTotalCount(response.count);
+      setTotalPages(Math.ceil(response.count / 20));
     } catch (error) {
       console.error("Search error:", error);
       setSearchResults([]);
@@ -111,7 +121,7 @@ export default function App() {
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
-      handleSearch();
+      handleSearch(1);
     }
   };
 
@@ -147,11 +157,15 @@ export default function App() {
 
       setLoadingRecipes(true);
       try {
-        const backendRecipes = await recipesAPI.getAllRecipes();
+        const response = await recipesAPI.getAllRecipes(currentPage);
         // Transform backend format to frontend format
-        const frontendRecipes = transformBackendToFrontend(backendRecipes);
+        const frontendRecipes = transformBackendToFrontend(response.results);
         setAllRecipes(frontendRecipes);
         setRecipes(frontendRecipes);
+
+        // Update pagination metadata
+        setTotalCount(response.count);
+        setTotalPages(Math.ceil(response.count / 20)); // 20 is the page size from backend
       } catch (error) {
         console.error("Error fetching recipes:", error);
         setAllRecipes([]);
@@ -162,7 +176,7 @@ export default function App() {
     };
 
     fetchRecipes();
-  }, [user]);
+  }, [user, currentPage]);
 
   // Apply filters whenever filter states change
   useEffect(() => {
@@ -335,9 +349,12 @@ export default function App() {
   const refreshRecipes = async () => {
     if (user) {
       try {
-        const backendRecipes = await recipesAPI.getAllRecipes();
-        const frontendRecipes = transformBackendToFrontend(backendRecipes);
+        const response = await recipesAPI.getAllRecipes(currentPage);
+        const frontendRecipes = transformBackendToFrontend(response.results);
         setAllRecipes(frontendRecipes);
+        // Update pagination metadata
+        setTotalCount(response.count);
+        setTotalPages(Math.ceil(response.count / 20));
         // Filters will be applied via useEffect
       } catch (error) {
         console.error("Error refreshing recipes:", error);
@@ -360,6 +377,7 @@ export default function App() {
     setHasSearched(false);
     setSearchQuery("");
     setSearchResults([]);
+    setCurrentPage(1); // Reset to page 1 when filters change
     setCheckedTagIds(prev =>
       prev.includes(tagId)
         ? prev.filter(id => id !== tagId)
@@ -379,10 +397,12 @@ export default function App() {
     setHasSearched(false);
     setSearchQuery("");
     setSearchResults([]);
+    setCurrentPage(1); // Reset to page 1 when filters change
     setNutritionFilters(filters);
   };
 
   const handleLikesSortChange = (order: 'none' | 'asc' | 'desc') => {
+    setCurrentPage(1); // Reset to page 1 when sort changes
     setLikesSortOrder(order);
   };
 
@@ -390,6 +410,7 @@ export default function App() {
     setHasSearched(false);
     setSearchQuery("");
     setSearchResults([]);
+    setCurrentPage(1); // Reset to page 1 when filters change
     setShowSavedOnly(prev => !prev);
   };
 
@@ -475,7 +496,7 @@ export default function App() {
             className="w-full pl-10 pr-24 py-3 sm:py-2 border border-black rounded text-black text-base min-h-[44px]"
           />
           <button
-            onClick={handleSearch}
+            onClick={() => handleSearch(1)}
             disabled={isSearching}
             className="absolute right-2 top-1/2 transform -translate-y-1/2 px-4 py-1 bg-black text-white rounded hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed text-sm min-h-[36px]"
           >
@@ -486,39 +507,53 @@ export default function App() {
 
       {/* Content Area - Recipes or Search Results */}
       <div className="max-w-5xl mx-auto">
-        {isSearching ? (
-          <div className="text-center py-12">
-            <p className="text-lg text-gray-600">Searching recipes...</p>
-          </div>
-        ) : hasSearched ? (
-          searchResults.length > 0 ? (
+        {hasSearched ? (
+          <>
+            {searchResults.length > 0 || isSearching ? (
+              <>
+                <RecipeGrid
+                  recipes={searchResults}
+                  onEdit={handleEditRecipe}
+                  onViewDetails={handleViewDetails}
+                  onToggleLike={handleToggleLike}
+                  onToggleSave={handleToggleSave}
+                  isAdmin={user?.is_staff || user?.is_superuser || false}
+                  isLoading={isSearching}
+                />
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalCount={totalCount}
+                  onPageChange={(page) => handleSearch(page)}
+                  isLoading={isSearching}
+                />
+              </>
+            ) : (
+              <div className="text-center py-12">
+                <p className="text-lg text-gray-600 mb-2">No recipes found for "{searchQuery}"</p>
+                <p className="text-sm text-gray-500">Try searching for something else</p>
+              </div>
+            )}
+          </>
+        ) : (
+          <>
             <RecipeGrid
-              recipes={searchResults}
+              recipes={recipes}
               onEdit={handleEditRecipe}
               onViewDetails={handleViewDetails}
               onToggleLike={handleToggleLike}
               onToggleSave={handleToggleSave}
               isAdmin={user?.is_staff || user?.is_superuser || false}
+              isLoading={loadingRecipes}
             />
-          ) : (
-            <div className="text-center py-12">
-              <p className="text-lg text-gray-600 mb-2">No recipes found for "{searchQuery}"</p>
-              <p className="text-sm text-gray-500">Try searching for something else</p>
-            </div>
-          )
-        ) : loadingRecipes ? (
-          <div className="text-center py-12">
-            <p className="text-lg text-gray-600">Loading recipes...</p>
-          </div>
-        ) : (
-          <RecipeGrid
-            recipes={recipes}
-            onEdit={handleEditRecipe}
-            onViewDetails={handleViewDetails}
-            onToggleLike={handleToggleLike}
-            onToggleSave={handleToggleSave}
-            isAdmin={user?.is_staff || user?.is_superuser || false}
-          />
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalCount={totalCount}
+              onPageChange={(page) => setCurrentPage(page)}
+              isLoading={loadingRecipes}
+            />
+          </>
         )}
       </div>
 

@@ -6,11 +6,11 @@ from django.contrib.auth.models import User  # Using Django's built-in User mode
 # ----------------------------------------------------------------------
 class Tag(models.Model):
     name = models.CharField(max_length=50, unique=True)
-    slug = models.SlugField(max_length=50, unique=True)
+    slug = models.SlugField(max_length=50, unique=True, db_index=True)  # Explicit index for slug lookups
     description = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    is_active = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True, db_index=True)  # Index for filtering active tags
 
     class Meta:
         db_table = 'recipe_tags'
@@ -43,22 +43,23 @@ class Recipes(models.Model):
     author = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        related_name='recipes'
+        related_name='recipes',
+        db_index=True  # Index for filtering by author
     )
-    
+
     title = models.CharField(max_length=100)
     description = models.TextField()
     prep_time_minutes = models.IntegerField(null=True, blank=True)
     cook_time_minutes = models.IntegerField(null=True, blank=True)
     servings = models.IntegerField(null=True, blank=True)
-    
+
     STATUS_CHOICES = (
         ('draft', 'Draft'),
         ('published', 'Published'),
     )
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft', db_index=True)  # Index for filtering by status
 
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)  # Index for ordering by date
     updated_at = models.DateTimeField(auto_now=True)
     instructions = models.TextField(blank=True, default='')
 
@@ -75,6 +76,7 @@ class Recipes(models.Model):
     class Meta:
         db_table = 'recipes'
         verbose_name_plural = "Recipes"
+        ordering = ['-created_at']  # Newest recipes first
 
 
     

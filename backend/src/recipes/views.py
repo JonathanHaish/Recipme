@@ -20,9 +20,19 @@ class TagViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class RecipeViewSet(viewsets.ModelViewSet):
-    queryset = Recipes.objects.all()
     serializer_class = RecipeSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        """
+        Optimize queryset to avoid N+1 queries by prefetching related objects.
+        """
+        return Recipes.objects.select_related('author').prefetch_related(
+            'tags',
+            'recipe_ingredients__ingredient',
+            'images',
+            'nutrition'
+        )
 
     def create(self, request, *args, **kwargs):
         # Log the incoming data for debugging
@@ -88,9 +98,15 @@ class RecipeViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def my_recipes(self, request):
         # Filter recipes to only those where the author is the logged-in user
-        user_recipes = Recipes.objects.filter(author=request.user)
+        user_recipes = self.get_queryset().filter(author=request.user)
 
-        # Use serializer to convert recipes to JSON
+        # Apply pagination
+        page = self.paginate_queryset(user_recipes)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        # Fallback if pagination is disabled
         serializer = self.get_serializer(user_recipes, many=True)
         return Response(serializer.data)
 
@@ -98,7 +114,14 @@ class RecipeViewSet(viewsets.ModelViewSet):
     # Returns recipes by a specific user ID (e.g., for viewing someone else's profile)
     @action(detail=False, methods=['get'], url_path='user/(?P<user_id>[0-9]+)')
     def by_user(self, request, user_id=None):
-        user_recipes = Recipes.objects.filter(author_id=user_id, status='published')
+        user_recipes = self.get_queryset().filter(author_id=user_id, status='published')
+
+        # Apply pagination
+        page = self.paginate_queryset(user_recipes)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
         serializer = self.get_serializer(user_recipes, many=True)
         return Response(serializer.data)
     
@@ -107,6 +130,11 @@ class RecipeViewSet(viewsets.ModelViewSet):
     def search(self, request):
         query = request.query_params.get('q', '').strip()
         if not query:
+            # Return empty paginated response
+            empty_queryset = self.get_queryset().none()
+            page = self.paginate_queryset(empty_queryset)
+            if page is not None:
+                return self.get_paginated_response([])
             return Response([])
 
         # Validate query length
@@ -114,11 +142,15 @@ class RecipeViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Search query too long (max 200 characters)'}, status=400)
 
         # Search in title and description
-        recipes = Recipes.objects.filter(
-            author=request.user
-        ).filter(
+        recipes = self.get_queryset().filter(
             Q(title__icontains=query) | Q(description__icontains=query)
         )
+
+        # Apply pagination
+        page = self.paginate_queryset(recipes)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
 
         serializer = self.get_serializer(recipes, many=True)
         return Response(serializer.data)
@@ -140,6 +172,10 @@ class RecipeViewSet(viewsets.ModelViewSet):
         match_mode = request.query_params.get('match', 'any').lower()
 
         if not tag_ids_str:
+            empty_queryset = self.get_queryset().none()
+            page = self.paginate_queryset(empty_queryset)
+            if page is not None:
+                return self.get_paginated_response([])
             return Response([])
 
         try:
@@ -148,14 +184,18 @@ class RecipeViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Invalid tag_ids format'}, status=400)
 
         if not tag_ids:
+            empty_queryset = self.get_queryset().none()
+            page = self.paginate_queryset(empty_queryset)
+            if page is not None:
+                return self.get_paginated_response([])
             return Response([])
 
         # Limit number of tags to prevent abuse
         if len(tag_ids) > 20:
             return Response({'error': 'Too many tag_ids (max 20)'}, status=400)
 
-        # Start with user's recipes
-        recipes = Recipes.objects.filter(author=request.user)
+        # Start with user's recipes (use get_queryset for proper optimization)
+        recipes = self.get_queryset()
 
         if match_mode == 'all':
             # AND logic - recipe must have ALL specified tags
@@ -166,6 +206,12 @@ class RecipeViewSet(viewsets.ModelViewSet):
             # OR logic (default) - recipe must have ANY of the specified tags
             recipes = recipes.filter(tags__id__in=tag_ids).distinct()
 
+        # Apply pagination
+        page = self.paginate_queryset(recipes)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
         serializer = self.get_serializer(recipes, many=True)
         return Response(serializer.data)
     
@@ -173,7 +219,14 @@ class RecipeViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def saved(self, request):
         saved_recipe_ids = Favorites.objects.filter(user=request.user).values_list('recipe_id', flat=True)
-        recipes = Recipes.objects.filter(id__in=saved_recipe_ids)
+        recipes = self.get_queryset().filter(id__in=saved_recipe_ids)
+
+        # Apply pagination
+        page = self.paginate_queryset(recipes)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
         serializer = self.get_serializer(recipes, many=True)
         return Response(serializer.data)
     

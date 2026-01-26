@@ -1,4 +1,5 @@
 import { RecipeCard } from "@/app/recipe_configure/components/RecipeCard"
+import { RecipeCardSkeleton } from "@/app/recipe_configure/components/RecipeCardSkeleton"
 
 interface Recipe {
   id?: string;
@@ -20,17 +21,33 @@ interface RecipeGridProps {
   onToggleSave: (recipeId: string) => void;
   isAdmin?: boolean;
   searchQuery?: string;
+  isLoading?: boolean;
 }
 
-export function RecipeGrid({ 
-  recipes, 
-  onEdit, 
+export function RecipeGrid({
+  recipes,
+  onEdit,
   onViewDetails,
-  onToggleLike, 
+  onToggleLike,
   onToggleSave,
   isAdmin = false,
-  searchQuery = ""
+  searchQuery = "",
+  isLoading = false
 }: RecipeGridProps) {
+  // Show skeleton loaders while loading
+  if (isLoading) {
+    return (
+      <div>
+        <div className="h-7 bg-gray-300 rounded w-32 mb-4 sm:mb-6 animate-pulse" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          {[...Array(6)].map((_, i) => (
+            <RecipeCardSkeleton key={i} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   const filteredRecipes = recipes.filter(recipe =>
     recipe.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     recipe.type.toLowerCase().includes(searchQuery.toLowerCase())

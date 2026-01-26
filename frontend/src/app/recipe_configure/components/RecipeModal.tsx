@@ -100,18 +100,6 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
     }
   }, [isOpen, mode, recipe]);
 
-  // Lock body scroll when modal is open
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [isOpen]);
-
   const resetForm = () => {
     setFormData({
       name: "",
@@ -375,7 +363,10 @@ export function RecipeModal({ isOpen, onClose, onSave, recipe, mode }: RecipeMod
 
             {/* Instructions */}
             <div className="space-y-2">
-              <label className="text-sm font-medium text-black">Instructions</label>
+              <label className="text-sm font-medium text-black">
+                Instructions
+                <span className="text-gray-500 font-normal ml-2">(Optional, but recommended)</span>
+              </label>
               <textarea
                 value={formData.instructions || ""}
                 onChange={(e) => handleInputChange("instructions", e.target.value)}
