@@ -5,7 +5,8 @@ import type {
   LoginResponse,
 } from '@/types/auth';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL ||
+  (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8000');
 
 // Custom API Error class for better error handling
 export class APIError extends Error {

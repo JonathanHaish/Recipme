@@ -37,6 +37,8 @@ services:
       - POSTGRES_HOST=postgres
       - REDIS_HOST=redis
       - EMAIL_HOST=mailpit
+    # Run as root to fix permissions, then switch to django user in entrypoint
+    user: root
 
   postgres:
     container_name: postgres-db

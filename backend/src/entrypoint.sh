@@ -1,22 +1,25 @@
 #!/bin/bash
 set -e
 
+echo "Fixing permissions for mounted volume..."
+chown -R django:django /app
+
 echo "Waiting for database..."
 sleep 3
 
 echo "Running migrations..."
-python3 manage.py migrate --noinput
+su django -c "python3 manage.py migrate --noinput"
 
 echo "Collecting static files..."
-python3 manage.py collectstatic --noinput
+su django -c "python3 manage.py collectstatic --noinput"
 
 echo "Creating superuser if needed..."
-python3 manage.py create_superuser_if_missing
+su django -c "python3 manage.py create_superuser_if_missing"
 
 echo "Starting gunicorn server..."
-exec /home/django/.local/bin/gunicorn mysite.wsgi:application \
+exec su django -c "/home/django/.local/bin/gunicorn mysite.wsgi:application \
     --bind 0.0.0.0:8000 \
     --workers 4 \
     --timeout 120 \
     --access-logfile - \
-    --error-logfile -
+    --error-logfile -"
