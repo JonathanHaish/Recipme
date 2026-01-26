@@ -274,7 +274,9 @@ class RecipeViewSet(viewsets.ModelViewSet):
         # Get user profile
         try:
             user_profile = UserProfile.objects.get(user=request.user)
+            logger.info(f"🎯 Personalized feed for {request.user.username}: diet={user_profile.diet.name if user_profile.diet else 'None'}, goals={[g.name for g in user_profile.goals.all()]}")
         except UserProfile.DoesNotExist:
+            logger.info(f"⚠️  No profile found for {request.user.username}, using default order")
             # If no profile, return all public recipes in default order
             page = self.paginate_queryset(all_recipes)
             if page is not None:
@@ -366,8 +368,17 @@ class RecipeViewSet(viewsets.ModelViewSet):
                     output_field=IntegerField()
                 )
             ).order_by('match_priority', '-created_at')
+
+            # Log how many recipes match each priority (for debugging)
+            priority_counts = {}
+            for recipe in all_recipes[:10]:  # Check first 10
+                priority = recipe.match_priority
+                priority_counts[priority] = priority_counts.get(priority, 0) + 1
+
+            logger.info(f"✅ Personalized ordering applied. Priority distribution (first 10): {priority_counts}")
         else:
             all_recipes = all_recipes.order_by('-created_at')
+            logger.info(f"ℹ️  No personalization conditions, using default order")
 
         # Apply pagination
         page = self.paginate_queryset(all_recipes)

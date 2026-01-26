@@ -33,10 +33,14 @@ urlpatterns = [
     path('api/profiles/', include('profiles.urls')),
 ]
 
-# Using re_path with serve view to handle media files
+# Using re_path with serve view to handle media and static files
+# (for development - in production, use nginx or another web server)
 urlpatterns += [
     re_path(r'^media/(?P<path>.*)$', serve, {
         'document_root': settings.MEDIA_ROOT,
+    }),
+    re_path(r'^static/(?P<path>.*)$', serve, {
+        'document_root': settings.STATIC_ROOT,
     }),
 ]
 

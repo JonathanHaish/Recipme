@@ -38,3 +38,11 @@ Thumbs.db
 
 # Python
 __pycache__/
+*.pyc
+*.pyo
+
+# Django
+backend/src/staticfiles/
+backend/src/media/
+*.sqlite3
+db.sqlite3
