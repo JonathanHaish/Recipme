@@ -4,6 +4,9 @@ from rest_framework import viewsets, permissions
 from django.db.models import Q, Count
 from .models import Recipes, RecipeLikes, Favorites, Tag
 from .serializers import RecipeSerializer, TagSerializer
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class TagViewSet(viewsets.ReadOnlyModelViewSet):
@@ -23,10 +26,10 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         # Log the incoming data for debugging
-        print(f"Received recipe data: {request.data}")
+        logger.info(f"Creating recipe with data: {request.data}")
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
-            print(f"Serializer errors: {serializer.errors}")
+            logger.error(f"Recipe creation failed: {serializer.errors}")
         return super().create(request, *args, **kwargs)
 
     def perform_create(self, serializer):
@@ -81,18 +84,18 @@ class RecipeViewSet(viewsets.ModelViewSet):
         context['request'] = self.request
         return context
 
-    # פונקציה שמחזירה את המתכונים של המשתמש ששלח את הבקשה
+    # Returns recipes created by the requesting user
     @action(detail=False, methods=['get'])
     def my_recipes(self, request):
-        # סינון המתכונים כך שרק אלו שה-author שלהם הוא המשתמש המחובר יוחזרו
+        # Filter recipes to only those where the author is the logged-in user
         user_recipes = Recipes.objects.filter(author=request.user)
-        
-        # שימוש בסריאליזר כדי להפוך את המתכונים ל-JSON
+
+        # Use serializer to convert recipes to JSON
         serializer = self.get_serializer(user_recipes, many=True)
         return Response(serializer.data)
 
-    
-    # פונקציה שמחזירה מתכונים של משתמש ספציפי לפי ID (למשל לצפייה בפרופיל של מישהו אחר)
+
+    # Returns recipes by a specific user ID (e.g., for viewing someone else's profile)
     @action(detail=False, methods=['get'], url_path='user/(?P<user_id>[0-9]+)')
     def by_user(self, request, user_id=None):
         user_recipes = Recipes.objects.filter(author_id=user_id, status='published')
@@ -155,15 +158,6 @@ class RecipeViewSet(viewsets.ModelViewSet):
             # OR logic (default) - recipe must have ANY of the specified tags
             recipes = recipes.filter(tags__id__in=tag_ids).distinct()
 
-        serializer = self.get_serializer(recipes, many=True)
-        return Response(serializer.data)
-    
-    # Get top 10 recipes by likes (placeholder - requires likes model)
-    @action(detail=False, methods=['get'])
-    def top_liked(self, request):
-        # For now, return user's recipes ordered by created_at
-        # TODO: Implement actual likes system
-        recipes = Recipes.objects.filter(author=request.user).order_by('-created_at')[:10]
         serializer = self.get_serializer(recipes, many=True)
         return Response(serializer.data)
     

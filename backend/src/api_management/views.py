@@ -97,9 +97,9 @@ class FoodIngredientView(APIView):
                 location = "/api/ingredients/nutritions/"
             else:
                 location = "/api/ingredients/"
-        
-       
-        # בדיקה בסיסית של פרמטרים
+
+
+        # Basic parameter validation
         if not info:
             return Response({
                 "status": 400,
@@ -107,37 +107,37 @@ class FoodIngredientView(APIView):
                 "error": "Missing info or data parameter"
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        # לוגיקת חיפוש רכיבים
+        # Ingredient search logic
         if location == "/api/ingredients/" or (not location and 'nutritions' not in request.path):
             results = food_api.search_ingredients(info)
-            
+
             # Debug: print results to see format
-           
-            
-            # בניית האובייקט עבור הסריליאזר העוטף
+
+
+            # Build the object for the wrapper serializer
             response_data = {
                 'status': 200,
                 'success': True,
-                'res': results  # רשימת ה-taglines מה-API שלך
+                'res': results  # List of taglines from your API
             }
-            
+
             # For output serialization, pass as instance and access .data directly
             serializer = IngredientSearchResponseSerializer(instance=response_data)
-           
+
             return Response(serializer.data)
 
-        # לוגיקת ערכים תזונתיים
+        # Nutrition values logic
         elif location == "/api/ingredients/nutritions/" or 'nutritions' in request.path:
             if not info.isdigit():
                 return Response({
                     "status": 400, "success": False, "error": "Invalid ID"
                 }, status=400)
-            
+
             nutritions = food_api.search_food_nutritions(info)
             return Response({
                 "status": 200,
                 "success": True,
-                "res": nutritions # כאן res יהיה אובייקט תזונה ולא רשימת מוצרים
+                "res": nutritions  # Here res will be a nutrition object, not a list of products
             })
 
         return Response({

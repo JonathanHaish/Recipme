@@ -332,19 +332,6 @@ export const recipesAPI = {
   },
 
   /**
-   * Get top 10 liked recipes
-   * @returns Array of top liked recipes
-   */
-  getTopLiked: async (): Promise<BackendRecipe[]> => {
-    try {
-      return await apiClient.request<BackendRecipe[]>(`${API_URL}/recipes/recipes/top_liked/`);
-    } catch (error) {
-      console.error('Error fetching top liked recipes:', error);
-      throw error;
-    }
-  },
-
-  /**
    * Get user's saved recipes
    * @returns Array of saved recipes
    */

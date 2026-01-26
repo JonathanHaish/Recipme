@@ -1,8 +1,8 @@
 from django.db import models
-from django.contrib.auth.models import User # שימוש במודל המשתמש המובנה של Django
+from django.contrib.auth.models import User  # Using Django's built-in User model
 
 # ----------------------------------------------------------------------
-# טבלת recipe_tags (תגיות למתכונים)
+# recipe_tags table (tags for recipes)
 # ----------------------------------------------------------------------
 class Tag(models.Model):
     name = models.CharField(max_length=50, unique=True)
@@ -21,7 +21,7 @@ class Tag(models.Model):
         return self.name
 
 # ----------------------------------------------------------------------
-# טבלת ingredients (תלות של Recipes)
+# ingredients table (dependency of Recipes)
 # ----------------------------------------------------------------------
 class Ingredients(models.Model):
     name = models.CharField(max_length=100)
@@ -37,7 +37,7 @@ class Ingredients(models.Model):
         return self.name
 
 # ----------------------------------------------------------------------
-# טבלת recipes (הטבלה המרכזית)
+# recipes table (the main table)
 # ----------------------------------------------------------------------
 class Recipes(models.Model):
     author = models.ForeignKey(
@@ -62,10 +62,10 @@ class Recipes(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     instructions = models.TextField(blank=True, default='')
 
-    # הגדרת יחס רבים לרבים עם Tags (תגיות)
+    # Many-to-many relationship with Tags
     tags = models.ManyToManyField('Tag', related_name='recipes', blank=True)
 
-    # הגדרת יחס רבים לרבים עם Ingredients דרך טבלת הצומת recipe_ingredients
+    # Many-to-many relationship with Ingredients through the junction table recipe_ingredients
     recipe_ingredients_map = models.ManyToManyField(
         Ingredients,
         through='RecipeIngredients',
@@ -82,7 +82,7 @@ class Recipes(models.Model):
         return self.title
 
 # ----------------------------------------------------------------------
-# טבלת recipe_ingredients (טבלת צומת עבור מתכונים ומרכיבים)
+# recipe_ingredients table (junction table for recipes and ingredients)
 # ----------------------------------------------------------------------
 class RecipeIngredients(models.Model):
     recipe = models.ForeignKey(
@@ -107,7 +107,7 @@ class RecipeIngredients(models.Model):
         verbose_name_plural = "Recipe Ingredients"
 
 # ----------------------------------------------------------------------
-# טבלת favorites (טבלת צומת עבור משתמשים ומתכונים מועדפים)
+# favorites table (junction table for users and favorite recipes)
 # ----------------------------------------------------------------------
 class Favorites(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='favorites')
@@ -119,7 +119,7 @@ class Favorites(models.Model):
         unique_together = (('user', 'recipe'),)
 
 # ----------------------------------------------------------------------
-# טבלת recipe_images (תמונות של מתכונים)
+# recipe_images table (images for recipes)
 # ----------------------------------------------------------------------
 class RecipeImages(models.Model):
     recipe = models.ForeignKey(Recipes, on_delete=models.CASCADE, related_name='images')
@@ -132,7 +132,7 @@ class RecipeImages(models.Model):
         verbose_name_plural = "Recipe Images"
 
 # ----------------------------------------------------------------------
-# טבלת recipe_likes (לייקים למתכונים)
+# recipe_likes table (likes for recipes)
 # ----------------------------------------------------------------------
 class RecipeLikes(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='likes')
@@ -144,7 +144,7 @@ class RecipeLikes(models.Model):
         unique_together = (('user', 'recipe'),)
 
 # ----------------------------------------------------------------------
-# טבלת recipe_nutrition (נתוני תזונה מחושבים)
+# recipe_nutrition table (calculated nutrition data)
 # ----------------------------------------------------------------------
 class RecipeNutrition(models.Model):
     recipe = models.OneToOneField(Recipes, on_delete=models.CASCADE, primary_key=True, related_name='nutrition')

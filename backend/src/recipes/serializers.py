@@ -35,7 +35,7 @@ class RecipeNutritionSerializer(serializers.ModelSerializer):
         fields = ['calories_kcal', 'protein_g', 'fat_g', 'carbs_g', 'fiber_g', 'sugars_g', 'updated_at']
 
 class RecipeIngredientSerializer(serializers.ModelSerializer):
-    # מאפשר לקבל את שם המרכיב בטקסט במקום ID
+    # Allows getting the ingredient name as text instead of ID
     ingredient_name = serializers.CharField(source='ingredient.name', read_only=True)
 
     class Meta:
@@ -154,14 +154,14 @@ class RecipeSerializer(serializers.ModelSerializer):
             logger = logging.getLogger(__name__)
             logger.error(f"Error handling image for recipe {recipe.id}: {str(e)}")
 
-    # פונקציית עזר פנימית לטיפול במרכיבים כדי לא לחזור על קוד
+    # Internal helper function to handle ingredients without code duplication
     def _handle_ingredients(self, recipe, ingredients_data):
-        # במקרה של עדכון, נמחק את המרכיבים הישנים וניצור חדשים
+        # In case of update, delete old ingredients and create new ones
         recipe.recipe_ingredients.all().delete()
-        
+
         for item in ingredients_data:
             name = item['ingredient']['name'].lower().strip()
-            # השגת המרכיב הכללי או יצירתו
+            # Get or create the ingredient object
             ingredient_obj, _ = Ingredients.objects.get_or_create(name=name)
             
             # Convert quantity string to Decimal if needed
@@ -184,8 +184,8 @@ class RecipeSerializer(serializers.ModelSerializer):
                         fdc_id = int(fdc_id)
                     except (ValueError, TypeError):
                         fdc_id = None
-            
-            # יצירת הקשר בטבלת הצומת
+
+            # Create the relationship in the junction table
             RecipeIngredients.objects.create(
                 recipe=recipe,
                 ingredient=ingredient_obj,
@@ -263,21 +263,21 @@ class RecipeSerializer(serializers.ModelSerializer):
 
     @transaction.atomic
     def create(self, validated_data):
-        # שליפת המרכיבים מהנתונים (אם קיימים)
+        # Extract ingredients from data (if they exist)
         ingredients_data = validated_data.pop('recipe_ingredients', [])
-        # שליפת תגיות (אם קיימות)
+        # Extract tags (if they exist)
         tag_ids = validated_data.pop('tag_ids', [])
-        # שליפת תמונה (אם קיימת)
+        # Extract image (if it exists)
         image_data = validated_data.pop('image', None)
 
-        # יצירת המתכון (ה-author יועבר מה-View)
+        # Create the recipe (author will be passed from the View)
         recipe = Recipes.objects.create(**validated_data)
 
-        # הוספת תגיות למתכון
+        # Add tags to the recipe
         if tag_ids:
             recipe.tags.set(tag_ids)
 
-        # שימוש בפונקציית העזר ליצירת המרכיבים (אם קיימים)
+        # Use helper function to create ingredients (if they exist)
         if ingredients_data:
             self._handle_ingredients(recipe, ingredients_data)
 
@@ -292,19 +292,19 @@ class RecipeSerializer(serializers.ModelSerializer):
 
     @transaction.atomic
     def update(self, instance, validated_data):
-        # שליפת המרכיבים (אם קיימים בבקשה)
+        # Extract ingredients (if they exist in the request)
         ingredients_data = validated_data.pop('recipe_ingredients', None)
-        # שליפת תגיות (אם קיימות בבקשה)
+        # Extract tags (if they exist in the request)
         tag_ids = validated_data.pop('tag_ids', None)
-        # שליפת תמונה (אם קיימת בבקשה)
+        # Extract image (if it exists in the request)
         image_data = validated_data.pop('image', None)
 
-        # עדכון שאר שדות המתכון
+        # Update other recipe fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
 
-        # עדכון תגיות רק אם נשלחו בבקשה
+        # Update tags only if they were sent in the request
         if tag_ids is not None:
             instance.tags.set(tag_ids)
 
@@ -312,7 +312,7 @@ class RecipeSerializer(serializers.ModelSerializer):
         if image_data is not None:
             self._handle_image(instance, image_data)
 
-        # עדכון מרכיבים רק אם נשלחו בבקשה
+        # Update ingredients only if they were sent in the request
         if ingredients_data is not None:
             self._handle_ingredients(instance, ingredients_data)
             # Recalculate nutrition when ingredients change

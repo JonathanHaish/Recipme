@@ -3,15 +3,15 @@ from django.conf import settings
 
 class IsInternalApp(permissions.BasePermission):
     """
-    מאפשר גישה רק אם ה-API Key הפנימי נשלח ב-Header של הבקשה.
-    כך ה-Key לא "מטייל" ב-URL וחשוף לעיני כל.
+    Allows access only if the internal API Key is sent in the request Header.
+    This way the Key doesn't "travel" in the URL and is not exposed to everyone.
     """
     def has_permission(self, request, view):
-        # ננסה להוציא את המפתח מה-Header (יותר מאובטח)
+        # Try to extract the key from the Header (more secure)
         api_key = request.headers.get('X-Internal-App-Key')
-        
-        # אם לא ב-header, נבדוק בפרמטרים (תאימות לאחור)
+
+        # If not in header, check query parameters (backward compatibility)
         if not api_key:
             api_key = request.query_params.get('key')
-            
+
         return api_key == settings.API_KEY
