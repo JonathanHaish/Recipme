@@ -17,7 +17,7 @@ echo "Creating superuser if needed..."
 su django -c "python3 manage.py create_superuser_if_missing"
 
 echo "Starting gunicorn server..."
-exec su django -c "/home/django/.local/bin/gunicorn mysite.wsgi:application \
+exec su django -c "gunicorn mysite.wsgi:application \
     --bind 0.0.0.0:8000 \
     --workers 4 \
     --timeout 120 \

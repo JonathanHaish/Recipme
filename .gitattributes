@@ -1,0 +1,41 @@
+# Ensure shell scripts always use LF line endings (Unix-style)
+# This prevents issues when team members work on Windows/Mac/Linux
+*.sh text eol=lf
+
+# Python files should use LF
+*.py text eol=lf
+
+# Docker files should use LF
+Dockerfile text eol=lf
+docker-compose*.yml text eol=lf
+.dockerignore text eol=lf
+
+# JavaScript/TypeScript files should use LF
+*.js text eol=lf
+*.jsx text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.json text eol=lf
+
+# Config files should use LF
+*.yml text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.ini text eol=lf
+.env* text eol=lf
+
+# Documentation
+*.md text eol=lf
+*.txt text eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary

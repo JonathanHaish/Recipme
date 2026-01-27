@@ -27,6 +27,10 @@ WORKDIR /app
 COPY ./src/requirements.txt .
 RUN pip3 install -r requirements.txt
 
+# Copy entrypoint and ensure it's executable
+COPY ./src/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
 # Now change ownership and switch to django user
 RUN chown -R django:django /app
 USER django
@@ -35,4 +39,4 @@ COPY --chown=django:django ./src .
 
 EXPOSE 8000
 
-ENTRYPOINT ["./entrypoint.sh"]
+ENTRYPOINT ["/app/entrypoint.sh"]
