@@ -22,13 +22,14 @@ RUN groupadd -g ${GID} django && \
     useradd -u ${UID} -g django -s /bin/bash -m django
 
 WORKDIR /app
-RUN chown -R django:django /app
 
-USER django
-
+# Install Python dependencies as root (system-wide)
 COPY ./src/requirements.txt .
+RUN pip3 install -r requirements.txt
 
-RUN pip install -r requirements.txt
+# Now change ownership and switch to django user
+RUN chown -R django:django /app
+USER django
 
 COPY --chown=django:django ./src .
 

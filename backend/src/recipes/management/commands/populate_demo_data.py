@@ -517,9 +517,22 @@ class Command(BaseCommand):
         return recipes
 
     def calculate_nutrition(self, recipes):
-        """Calculate nutrition data for all recipes"""
+        """Calculate nutrition data for all recipes using batch fetching"""
         food_api = FoodDataCentralAPI(api_key=settings.API_KEY)
 
+        # Collect all unique fdc_ids from all recipes
+        all_fdc_ids = set()
+        for recipe in recipes:
+            for recipe_ingredient in recipe.recipe_ingredients.all():
+                if recipe_ingredient.fdc_id:
+                    all_fdc_ids.add(str(recipe_ingredient.fdc_id))
+
+        # Fetch all nutrition data in one batch
+        self.stdout.write(f'  Fetching nutrition data for {len(all_fdc_ids)} unique ingredients...')
+        nutrition_map = food_api.search_food_nutritions_batch(list(all_fdc_ids))
+        self.stdout.write(self.style.SUCCESS(f'  Fetched nutrition data for {len(nutrition_map)} ingredients'))
+
+        # Now process each recipe using the pre-fetched data
         for recipe in recipes:
             try:
                 total_calories = 0.0
@@ -534,8 +547,9 @@ class Command(BaseCommand):
                     if not recipe_ingredient.fdc_id:
                         continue
 
-                    # Get nutrition data from API
-                    nutritions = food_api.search_food_nutritions(str(recipe_ingredient.fdc_id))
+                    # Get nutrition data from pre-fetched map
+                    fdc_id = str(recipe_ingredient.fdc_id)
+                    nutritions = nutrition_map.get(fdc_id, {})
 
                     if not nutritions:
                         continue

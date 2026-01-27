@@ -197,7 +197,8 @@ class RecipeSerializer(serializers.ModelSerializer):
 
     def _calculate_recipe_nutrition(self, recipe):
         """
-        Calculate and save nutritional profile for a recipe based on its ingredients
+        Calculate and save nutritional profile for a recipe based on its ingredients.
+        Uses batch fetching to get all nutrition data concurrently.
         """
         try:
             food_api = FoodDataCentralAPI(api_key=settings.API_KEY)
@@ -207,27 +208,39 @@ class RecipeSerializer(serializers.ModelSerializer):
             total_carbs = 0.0
             total_fiber = 0.0
             total_sugars = 0.0
-            
-            # Iterate through recipe ingredients
+
+            # Collect all fdc_ids and ingredients with fdc_id
+            ingredients_with_fdc = []
+            fdc_ids = []
+
             for recipe_ingredient in recipe.recipe_ingredients.all():
-                if not recipe_ingredient.fdc_id:
-                    continue
-                
-                # Get nutrition data from API
-                nutritions = food_api.search_food_nutritions(str(recipe_ingredient.fdc_id))
-                
+                if recipe_ingredient.fdc_id:
+                    ingredients_with_fdc.append(recipe_ingredient)
+                    fdc_ids.append(str(recipe_ingredient.fdc_id))
+
+            # Fetch all nutrition data concurrently in one batch
+            if fdc_ids:
+                nutrition_map = food_api.search_food_nutritions_batch(fdc_ids)
+            else:
+                nutrition_map = {}
+
+            # Process each ingredient with its nutrition data
+            for recipe_ingredient in ingredients_with_fdc:
+                fdc_id = str(recipe_ingredient.fdc_id)
+                nutritions = nutrition_map.get(fdc_id, {})
+
                 if not nutritions:
                     continue
-                
+
                 # Get quantity as float (in grams, assuming quantity is in grams)
                 try:
                     quantity_g = float(recipe_ingredient.quantity)
                 except (ValueError, TypeError):
                     quantity_g = 0.0
-                
+
                 # Calculate per 100g basis (API returns per 100g typically)
                 multiplier = quantity_g / 100.0 if quantity_g > 0 else 0
-                
+
                 # Sum up nutrients
                 if 'calories' in nutritions and nutritions['calories'].get('value'):
                     total_calories += nutritions['calories']['value'] * multiplier
