@@ -517,81 +517,81 @@ class Command(BaseCommand):
         return recipes
 
     def calculate_nutrition(self, recipes):
-        """Calculate nutrition data for all recipes using batch fetching"""
-        food_api = FoodDataCentralAPI(api_key=settings.API_KEY)
-
-        # Collect all unique fdc_ids from all recipes
-        all_fdc_ids = set()
-        for recipe in recipes:
-            for recipe_ingredient in recipe.recipe_ingredients.all():
-                if recipe_ingredient.fdc_id:
-                    all_fdc_ids.add(str(recipe_ingredient.fdc_id))
-
-        # Fetch all nutrition data in one batch
-        self.stdout.write(f'  Fetching nutrition data for {len(all_fdc_ids)} unique ingredients...')
-        nutrition_map = food_api.search_food_nutritions_batch(list(all_fdc_ids))
-        self.stdout.write(self.style.SUCCESS(f'  Fetched nutrition data for {len(nutrition_map)} ingredients'))
-
-        # Now process each recipe using the pre-fetched data
-        for recipe in recipes:
-            try:
-                total_calories = 0.0
-                total_protein = 0.0
-                total_fat = 0.0
-                total_carbs = 0.0
-                total_fiber = 0.0
-                total_sugars = 0.0
-
-                # Iterate through recipe ingredients
+        """Calculate nutrition data for all recipes with proper connection cleanup"""
+        # Use context manager to ensure connections are closed
+        with FoodDataCentralAPI(api_key=settings.API_KEY) as food_api:
+            # Collect all unique fdc_ids from all recipes
+            all_fdc_ids = set()
+            for recipe in recipes:
                 for recipe_ingredient in recipe.recipe_ingredients.all():
-                    if not recipe_ingredient.fdc_id:
-                        continue
+                    if recipe_ingredient.fdc_id:
+                        all_fdc_ids.add(str(recipe_ingredient.fdc_id))
 
-                    # Get nutrition data from pre-fetched map
-                    fdc_id = str(recipe_ingredient.fdc_id)
-                    nutritions = nutrition_map.get(fdc_id, {})
+            # Fetch all nutrition data in batch
+            self.stdout.write(f'  Fetching nutrition data for {len(all_fdc_ids)} unique ingredients...')
+            nutrition_map = food_api.search_food_nutritions_batch(list(all_fdc_ids))
+            self.stdout.write(self.style.SUCCESS(f'  Fetched nutrition data for {len(nutrition_map)} ingredients'))
 
-                    if not nutritions:
-                        continue
+            # Now process each recipe using the pre-fetched data
+            for recipe in recipes:
+                try:
+                    total_calories = 0.0
+                    total_protein = 0.0
+                    total_fat = 0.0
+                    total_carbs = 0.0
+                    total_fiber = 0.0
+                    total_sugars = 0.0
 
-                    # Get quantity as float (in grams)
-                    try:
-                        quantity_g = float(recipe_ingredient.quantity)
-                    except (ValueError, TypeError):
-                        quantity_g = 0.0
+                    # Iterate through recipe ingredients
+                    for recipe_ingredient in recipe.recipe_ingredients.all():
+                        if not recipe_ingredient.fdc_id:
+                            continue
 
-                    # Calculate per 100g basis
-                    multiplier = quantity_g / 100.0 if quantity_g > 0 else 0
+                        # Get nutrition data from pre-fetched map
+                        fdc_id = str(recipe_ingredient.fdc_id)
+                        nutritions = nutrition_map.get(fdc_id, {})
 
-                    # Sum up nutrients
-                    if 'calories' in nutritions and nutritions['calories'].get('value'):
-                        total_calories += nutritions['calories']['value'] * multiplier
-                    if 'protein' in nutritions and nutritions['protein'].get('value'):
-                        total_protein += nutritions['protein']['value'] * multiplier
-                    if 'fat' in nutritions and nutritions['fat'].get('value'):
-                        total_fat += nutritions['fat']['value'] * multiplier
-                    if 'carbohydrates' in nutritions and nutritions['carbohydrates'].get('value'):
-                        total_carbs += nutritions['carbohydrates']['value'] * multiplier
-                    if 'fiber' in nutritions and nutritions['fiber'].get('value'):
-                        total_fiber += nutritions['fiber']['value'] * multiplier
-                    if 'sugars' in nutritions and nutritions['sugars'].get('value'):
-                        total_sugars += nutritions['sugars']['value'] * multiplier
+                        if not nutritions:
+                            continue
 
-                # Save or update RecipeNutrition
-                RecipeNutrition.objects.update_or_create(
-                    recipe=recipe,
-                    defaults={
-                        'calories_kcal': Decimal(str(round(total_calories, 3))) if total_calories > 0 else None,
-                        'protein_g': Decimal(str(round(total_protein, 3))) if total_protein > 0 else None,
-                        'fat_g': Decimal(str(round(total_fat, 3))) if total_fat > 0 else None,
-                        'carbs_g': Decimal(str(round(total_carbs, 3))) if total_carbs > 0 else None,
-                        'fiber_g': Decimal(str(round(total_fiber, 3))) if total_fiber > 0 else None,
-                        'sugars_g': Decimal(str(round(total_sugars, 3))) if total_sugars > 0 else None,
-                    }
-                )
-                self.stdout.write(f'  Calculated nutrition for: {recipe.title}')
-            except Exception as e:
-                self.stdout.write(self.style.WARNING(f'  Failed to calculate nutrition for {recipe.title}: {str(e)}'))
+                        # Get quantity as float (in grams)
+                        try:
+                            quantity_g = float(recipe_ingredient.quantity)
+                        except (ValueError, TypeError):
+                            quantity_g = 0.0
+
+                        # Calculate per 100g basis
+                        multiplier = quantity_g / 100.0 if quantity_g > 0 else 0
+
+                        # Sum up nutrients
+                        if 'calories' in nutritions and nutritions['calories'].get('value'):
+                            total_calories += nutritions['calories']['value'] * multiplier
+                        if 'protein' in nutritions and nutritions['protein'].get('value'):
+                            total_protein += nutritions['protein']['value'] * multiplier
+                        if 'fat' in nutritions and nutritions['fat'].get('value'):
+                            total_fat += nutritions['fat']['value'] * multiplier
+                        if 'carbohydrates' in nutritions and nutritions['carbohydrates'].get('value'):
+                            total_carbs += nutritions['carbohydrates']['value'] * multiplier
+                        if 'fiber' in nutritions and nutritions['fiber'].get('value'):
+                            total_fiber += nutritions['fiber']['value'] * multiplier
+                        if 'sugars' in nutritions and nutritions['sugars'].get('value'):
+                            total_sugars += nutritions['sugars']['value'] * multiplier
+
+                    # Save or update RecipeNutrition
+                    RecipeNutrition.objects.update_or_create(
+                        recipe=recipe,
+                        defaults={
+                            'calories_kcal': Decimal(str(round(total_calories, 3))) if total_calories > 0 else None,
+                            'protein_g': Decimal(str(round(total_protein, 3))) if total_protein > 0 else None,
+                            'fat_g': Decimal(str(round(total_fat, 3))) if total_fat > 0 else None,
+                            'carbs_g': Decimal(str(round(total_carbs, 3))) if total_carbs > 0 else None,
+                            'fiber_g': Decimal(str(round(total_fiber, 3))) if total_fiber > 0 else None,
+                            'sugars_g': Decimal(str(round(total_sugars, 3))) if total_sugars > 0 else None,
+                        }
+                    )
+                    self.stdout.write(f'  Calculated nutrition for: {recipe.title}')
+                except Exception as e:
+                    self.stdout.write(self.style.WARNING(f'  Failed to calculate nutrition for {recipe.title}: {str(e)}'))
 
     def add_interactions(self, users, recipes):
         """Add likes and saves to make the demo realistic"""

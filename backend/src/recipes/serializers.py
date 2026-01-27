@@ -198,62 +198,63 @@ class RecipeSerializer(serializers.ModelSerializer):
     def _calculate_recipe_nutrition(self, recipe):
         """
         Calculate and save nutritional profile for a recipe based on its ingredients.
-        Uses batch fetching to get all nutrition data concurrently.
+        Simple synchronous approach - reliable and properly closes connections.
         """
+        # Use context manager to ensure proper cleanup
         try:
-            food_api = FoodDataCentralAPI(api_key=settings.API_KEY)
-            total_calories = 0.0
-            total_protein = 0.0
-            total_fat = 0.0
-            total_carbs = 0.0
-            total_fiber = 0.0
-            total_sugars = 0.0
+            with FoodDataCentralAPI(api_key=settings.API_KEY) as food_api:
+                total_calories = 0.0
+                total_protein = 0.0
+                total_fat = 0.0
+                total_carbs = 0.0
+                total_fiber = 0.0
+                total_sugars = 0.0
 
-            # Collect all fdc_ids and ingredients with fdc_id
-            ingredients_with_fdc = []
-            fdc_ids = []
+                # Collect all fdc_ids and ingredients with fdc_id
+                ingredients_with_fdc = []
+                fdc_ids = []
 
-            for recipe_ingredient in recipe.recipe_ingredients.all():
-                if recipe_ingredient.fdc_id:
-                    ingredients_with_fdc.append(recipe_ingredient)
-                    fdc_ids.append(str(recipe_ingredient.fdc_id))
+                for recipe_ingredient in recipe.recipe_ingredients.all():
+                    if recipe_ingredient.fdc_id:
+                        ingredients_with_fdc.append(recipe_ingredient)
+                        fdc_ids.append(str(recipe_ingredient.fdc_id))
 
-            # Fetch all nutrition data concurrently in one batch
-            if fdc_ids:
-                nutrition_map = food_api.search_food_nutritions_batch(fdc_ids)
-            else:
-                nutrition_map = {}
+                # Fetch all nutrition data in batch
+                if fdc_ids:
+                    nutrition_map = food_api.search_food_nutritions_batch(fdc_ids)
+                else:
+                    nutrition_map = {}
 
-            # Process each ingredient with its nutrition data
-            for recipe_ingredient in ingredients_with_fdc:
-                fdc_id = str(recipe_ingredient.fdc_id)
-                nutritions = nutrition_map.get(fdc_id, {})
+                # Process each ingredient with its nutrition data
+                for recipe_ingredient in ingredients_with_fdc:
+                    fdc_id = str(recipe_ingredient.fdc_id)
+                    nutritions = nutrition_map.get(fdc_id, {})
 
-                if not nutritions:
-                    continue
+                    if not nutritions:
+                        continue
 
-                # Get quantity as float (in grams, assuming quantity is in grams)
-                try:
-                    quantity_g = float(recipe_ingredient.quantity)
-                except (ValueError, TypeError):
-                    quantity_g = 0.0
+                    # Get quantity as float (in grams, assuming quantity is in grams)
+                    try:
+                        quantity_g = float(recipe_ingredient.quantity)
+                    except (ValueError, TypeError):
+                        quantity_g = 0.0
 
-                # Calculate per 100g basis (API returns per 100g typically)
-                multiplier = quantity_g / 100.0 if quantity_g > 0 else 0
+                    # Calculate per 100g basis (API returns per 100g typically)
+                    multiplier = quantity_g / 100.0 if quantity_g > 0 else 0
 
-                # Sum up nutrients
-                if 'calories' in nutritions and nutritions['calories'].get('value'):
-                    total_calories += nutritions['calories']['value'] * multiplier
-                if 'protein' in nutritions and nutritions['protein'].get('value'):
-                    total_protein += nutritions['protein']['value'] * multiplier
-                if 'fat' in nutritions and nutritions['fat'].get('value'):
-                    total_fat += nutritions['fat']['value'] * multiplier
-                if 'carbohydrates' in nutritions and nutritions['carbohydrates'].get('value'):
-                    total_carbs += nutritions['carbohydrates']['value'] * multiplier
-                if 'fiber' in nutritions and nutritions['fiber'].get('value'):
-                    total_fiber += nutritions['fiber']['value'] * multiplier
-                if 'sugars' in nutritions and nutritions['sugars'].get('value'):
-                    total_sugars += nutritions['sugars']['value'] * multiplier
+                    # Sum up nutrients
+                    if 'calories' in nutritions and nutritions['calories'].get('value'):
+                        total_calories += nutritions['calories']['value'] * multiplier
+                    if 'protein' in nutritions and nutritions['protein'].get('value'):
+                        total_protein += nutritions['protein']['value'] * multiplier
+                    if 'fat' in nutritions and nutritions['fat'].get('value'):
+                        total_fat += nutritions['fat']['value'] * multiplier
+                    if 'carbohydrates' in nutritions and nutritions['carbohydrates'].get('value'):
+                        total_carbs += nutritions['carbohydrates']['value'] * multiplier
+                    if 'fiber' in nutritions and nutritions['fiber'].get('value'):
+                        total_fiber += nutritions['fiber']['value'] * multiplier
+                    if 'sugars' in nutritions and nutritions['sugars'].get('value'):
+                        total_sugars += nutritions['sugars']['value'] * multiplier
             
             # Save or update RecipeNutrition
             from decimal import Decimal
